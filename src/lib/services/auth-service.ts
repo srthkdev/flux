@@ -1,10 +1,5 @@
 import prismadb from '../db';
 
-interface EmailAddress {
-  id: string;
-  emailAddress: string;
-}
-
 export const authService = {
   getUserById: async (userId: string) => {
     return await prismadb.user.findUnique({

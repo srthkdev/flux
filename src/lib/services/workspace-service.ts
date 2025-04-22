@@ -86,7 +86,7 @@ export const workspaceService = {
     });
 
     // Get the form details for each favorite
-    const formIds = favorites.map(fav => fav.formId);
+    const formIds = favorites.map((fav: { formId: string }) => fav.formId);
     const forms = await prismadb.form.findMany({
       where: { 
         id: { in: formIds },
@@ -99,8 +99,8 @@ export const workspaceService = {
     });
 
     // Combine the data
-    return favorites.map(favorite => {
-      const form = forms.find(f => f.id === favorite.formId);
+    return favorites.map((favorite: { formId: string, [key: string]: any }) => {
+      const form = forms.find((f: { id: string }) => f.id === favorite.formId);
       return {
         ...favorite,
         form

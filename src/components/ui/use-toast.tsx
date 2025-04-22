@@ -15,12 +15,12 @@ export type ToasterToast = ToastProps & {
   action?: ToastActionElement
 }
 
-const actionTypes = {
+type ActionType = {
   ADD_TOAST: "ADD_TOAST",
   UPDATE_TOAST: "UPDATE_TOAST",
   DISMISS_TOAST: "DISMISS_TOAST",
-  REMOVE_TOAST: "REMOVE_TOAST",
-} as const
+  REMOVE_TOAST: "REMOVE_TOAST"
+}
 
 let count = 0
 
@@ -29,23 +29,21 @@ function genId() {
   return count.toString()
 }
 
-type ActionType = typeof actionTypes
-
 type Action =
   | {
-      type: ActionType["ADD_TOAST"]
+      type: "ADD_TOAST"
       toast: ToasterToast
     }
   | {
-      type: ActionType["UPDATE_TOAST"]
+      type: "UPDATE_TOAST"
       toast: Partial<ToasterToast>
     }
   | {
-      type: ActionType["DISMISS_TOAST"]
+      type: "DISMISS_TOAST"
       toastId?: ToasterToast["id"]
     }
   | {
-      type: ActionType["REMOVE_TOAST"]
+      type: "REMOVE_TOAST"
       toastId?: ToasterToast["id"]
     }
 
@@ -54,6 +52,8 @@ interface State {
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+
+let dispatch: React.Dispatch<Action>;
 
 const reducer = (state: State, action: Action): State => {
   switch (action.type) {
@@ -177,7 +177,6 @@ export function ToasterProvider({
   // This is a hack to make the state and dispatch available to the toast function
   React.useEffect(() => {
     dispatch = innerDispatch
-    state$ = state
   }, [state])
 
   return (
@@ -202,7 +201,4 @@ export function ToasterProvider({
       {children}
     </ToasterContext.Provider>
   )
-}
-
-let dispatch: React.Dispatch<Action>
-let state$: State 
+} 
