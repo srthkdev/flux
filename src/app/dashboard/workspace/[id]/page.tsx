@@ -1,28 +1,13 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { Plus, MoreHorizontal, Settings, Trash2, ArrowLeft } from 'lucide-react'
-import { useUser } from '@clerk/nextjs'
+import { useState, useEffect } from "react"
+import { useRouter, useParams } from "next/navigation"
+import { Plus, MoreHorizontal, Search } from "lucide-react"
+import { useUser } from "@clerk/nextjs"
 
-import { Button } from '@/components/ui/button'
-import { 
-  Card, 
-  CardContent,
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-
-import { workspaceService } from '@/lib/services/workspace-service'
-import { WorkspaceModal } from '@/components/workspace-modal'
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { WorkspaceModal } from "@/components/workspace-modal"
 
 interface FormItem {
   id: string
@@ -35,7 +20,6 @@ interface FormItem {
 interface WorkspaceData {
   id: string
   name: string
-  emoji?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -45,92 +29,92 @@ export default function WorkspaceDetailPage() {
   const params = useParams()
   const workspaceId = params.id as string
   const { user, isLoaded } = useUser()
-  
+
   const [forms, setForms] = useState<FormItem[]>([])
+  const [filteredForms, setFilteredForms] = useState<FormItem[]>([])
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     const fetchData = async () => {
       if (!workspaceId) return
 
       setIsLoading(true)
-      
+
       try {
-        const response = await fetch('/api/user')
-        if (!response.ok) {
-          throw new Error('Failed to fetch user data')
-        }
-        
-        const userData = await response.json()
-        
-        // Fetch workspace details using API
+        // Fetch workspace details using API - userId is automatically handled by auth
         const workspaceResponse = await fetch(`/api/workspace/${workspaceId}`)
         if (!workspaceResponse.ok) {
-          throw new Error('Failed to fetch workspace details')
+          throw new Error("Failed to fetch workspace details")
         }
-        
+
         const currentWorkspace = await workspaceResponse.json()
-        
-        // Convert null emoji to undefined to match our type
+
         setWorkspace({
           id: currentWorkspace.id,
           name: currentWorkspace.name,
-          emoji: currentWorkspace.emoji || undefined,
           createdAt: currentWorkspace.createdAt,
-          updatedAt: currentWorkspace.updatedAt
+          updatedAt: currentWorkspace.updatedAt,
         })
-        
+
         // Fetch forms in this workspace using API
-        const formsResponse = await fetch(`/api/workspace/${workspaceId}/forms?userId=${userData.id}`)
+        const formsResponse = await fetch(`/api/workspace/${workspaceId}/forms`)
         if (!formsResponse.ok) {
-          throw new Error('Failed to fetch workspace forms')
+          throw new Error("Failed to fetch workspace forms")
         }
-        
+
         const workspaceForms = await formsResponse.json()
         setForms(workspaceForms || [])
+        setFilteredForms(workspaceForms || [])
       } catch (error) {
-        console.error('Error fetching workspace data:', error)
+        console.error("Error fetching workspace data:", error)
       } finally {
         setIsLoading(false)
       }
     }
-    
+
     fetchData()
   }, [workspaceId, router])
 
+  // Search functionality
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredForms(forms)
+    } else {
+      const filtered = forms.filter(
+        (form) =>
+          form.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (form.description && form.description.toLowerCase().includes(searchQuery.toLowerCase())),
+      )
+      setFilteredForms(filtered)
+    }
+  }, [searchQuery, forms])
+
   const handleCreateForm = async () => {
     if (!workspace) return
-    
+
     try {
-      const response = await fetch('/api/user')
-      if (!response.ok) {
-        throw new Error('Failed to fetch user data')
-      }
-      
-      const userData = await response.json()
-      
       const formResponse = await fetch(`/api/workspace/${workspace.id}/forms`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          title: 'Untitled',
-          description: '',
-          userId: userData.id,
+          title: "Untitled",
+          description: "",
         }),
       })
-      
+
       if (!formResponse.ok) {
-        throw new Error('Failed to create form')
+        throw new Error("Failed to create form")
       }
-      
+
       const newForm = await formResponse.json()
       router.push(`/dashboard/forms/${newForm.id}`)
     } catch (error) {
-      console.error('Error creating form:', error)
+      console.error("Error creating form:", error)
     }
   }
 
@@ -141,80 +125,57 @@ export default function WorkspaceDetailPage() {
 
   const refreshWorkspace = async () => {
     if (!workspaceId) return
-    
+
     setIsLoading(true)
-    
+
     try {
-      const response = await fetch('/api/user')
-      if (!response.ok) {
-        throw new Error('Failed to fetch user data')
-      }
-      
-      const userData = await response.json()
-      
       // Fetch workspace details using API
       const workspaceResponse = await fetch(`/api/workspace/${workspaceId}`)
       if (!workspaceResponse.ok) {
-        throw new Error('Failed to fetch workspace details')
+        throw new Error("Failed to fetch workspace details")
       }
-      
+
       const currentWorkspace = await workspaceResponse.json()
-      
-      // Convert null emoji to undefined to match our type
+
       setWorkspace({
         id: currentWorkspace.id,
         name: currentWorkspace.name,
-        emoji: currentWorkspace.emoji || undefined,
         createdAt: currentWorkspace.createdAt,
-        updatedAt: currentWorkspace.updatedAt
+        updatedAt: currentWorkspace.updatedAt,
       })
-      
+
       // Fetch forms in this workspace using API
-      const formsResponse = await fetch(`/api/workspace/${workspaceId}/forms?userId=${userData.id}`)
+      const formsResponse = await fetch(`/api/workspace/${workspaceId}/forms`)
       if (!formsResponse.ok) {
-        throw new Error('Failed to fetch workspace forms')
+        throw new Error("Failed to fetch workspace forms")
       }
-      
+
       const workspaceForms = await formsResponse.json()
       setForms(workspaceForms || [])
+      setFilteredForms(workspaceForms || [])
     } catch (error) {
-      console.error('Error refreshing workspace data:', error)
+      console.error("Error refreshing workspace data:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
+  const formatTimeAgo = (date: Date) => {
+    if (!date) return ""
+    return `${new Date(date).toLocaleDateString(undefined, { day: "numeric", month: "short" })} ago`
+  }
+
   if (isLoading || !workspace) {
     return (
-      <div className="container mx-auto py-6 max-w-7xl">
-        <div className="flex items-center mb-8">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="mr-2" 
-            onClick={() => router.push('/dashboard/workspace')}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-8">
           <div className="h-8 bg-muted/30 rounded animate-pulse w-1/4" />
+          <div className="h-10 bg-muted/30 rounded animate-pulse w-32" />
         </div>
-        
-        <div className="border-b pb-6 mb-6">
-          <div className="h-6 bg-muted/30 rounded animate-pulse w-32 mb-4" />
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+        <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="border border-border">
-              <CardHeader className="pb-2">
-                <div className="h-6 bg-muted/30 rounded animate-pulse w-3/4 mb-2" />
-                <div className="h-4 bg-muted/30 rounded animate-pulse w-1/2" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-4 bg-muted/30 rounded animate-pulse w-full mb-2" />
-              </CardContent>
-            </Card>
+            <div key={i} className="h-20 bg-muted/30 rounded animate-pulse" />
           ))}
         </div>
       </div>
@@ -222,136 +183,95 @@ export default function WorkspaceDetailPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 max-w-7xl">
-      <div className="flex justify-between items-center mb-8">
-        <div className="flex items-center">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="mr-2" 
-            onClick={() => router.push('/dashboard/workspace')}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          
-          <div className="flex items-center">
-            <span className="text-2xl mr-2">{workspace.emoji || '📁'}</span>
-            <h1 className="text-3xl font-serif font-medium">{workspace.name}</h1>
+    <div className="max-w-5xl mx-auto px-4 py-8">
+      <div className="flex flex-col space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-medium">{workspace.name}</h1>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 opacity-60 hover:opacity-100"
+              onClick={handleEditWorkspace}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
           </div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleEditWorkspace}>
-            <Settings className="h-4 w-4 mr-2" />
-            Edit workspace
-          </Button>
-          
-          <Button onClick={handleCreateForm}>
+
+          <Button variant="default" className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateForm}>
             <Plus className="h-4 w-4 mr-2" />
             New form
           </Button>
         </div>
-      </div>
-      
-      <div className="border-b pb-6 mb-6">
-        <h2 className="text-xl font-medium">Forms</h2>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search"
+            className="pl-10 bg-gray-50 border-gray-200"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          {filteredForms.length > 0 ? (
+            filteredForms.map((form) => (
+              <div
+                key={form.id}
+                className="border border-gray-200 rounded-md hover:border-gray-300 transition-all cursor-pointer"
+                onClick={() => router.push(`/dashboard/forms/${form.id}`)}
+              >
+                <div className="p-4">
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-medium">{form.title}</h3>
+                      {!form.published && (
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Draft</span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {form.published && <span>1 submission · </span>}
+                      Edited {formatTimeAgo(form.updatedAt)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-12">
+              {searchQuery ? (
+                <p className="text-gray-500">No forms match your search.</p>
+              ) : (
+                <>
+                  <p className="text-gray-500 mb-4">No forms yet. Create your first form to get started.</p>
+                  <Button onClick={handleCreateForm}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create form
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {forms.length === 0 ? (
-        <div className="border border-dashed rounded-lg p-12 text-center">
-          <h3 className="text-lg font-medium mb-2">No forms in this workspace</h3>
-          <p className="text-muted-foreground mb-6">Create forms to collect responses and organize them in this workspace.</p>
-          <Button onClick={handleCreateForm}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create your first form
-          </Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {forms.map((form) => (
-            <Card 
-              key={form.id} 
-              className="border border-border hover:border-primary/20 hover:shadow-sm transition-all cursor-pointer"
-              onClick={() => router.push(`/dashboard/forms/${form.id}`)}
-            >
-              <CardHeader className="pb-2 flex flex-row justify-between items-start">
-                <div>
-                  <CardTitle className="text-lg">{form.title}</CardTitle>
-                  <CardDescription>
-                    Edited {new Date(form.updatedAt).toLocaleDateString()}
-                  </CardDescription>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(`/dashboard/forms/${form.id}/edit`);
-                    }}>
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(`/dashboard/forms/${form.id}/responses`);
-                    }}>
-                      View responses
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      className="text-destructive focus:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        fetch(`/api/forms/${form.id}/trash`, {
-                          method: 'PATCH',
-                        })
-                          .then(response => {
-                            if (!response.ok) {
-                              throw new Error('Failed to move form to trash');
-                            }
-                            // Update local state
-                            setForms(forms.filter(f => f.id !== form.id));
-                          })
-                          .catch(error => {
-                            console.error('Error moving form to trash:', error);
-                          });
-                      }}
-                    >
-                      Move to trash
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {form.description || 'No description'}
-                </p>
-              </CardContent>
-              <CardFooter className="pt-0">
-                <span className={`text-xs py-1 px-2 rounded-full ${form.published ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                  {form.published ? 'Published' : 'Draft'}
-                </span>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
-      
       {/* Edit Workspace Modal */}
       <WorkspaceModal
         isOpen={isEditModalOpen}
         onOpenChange={(open) => {
           setIsEditModalOpen(open)
         }}
-        workspaceToEdit={workspace ? {
-          id: workspace.id,
-          name: workspace.name,
-          emoji: workspace.emoji
-        } : undefined}
+        workspaceToEdit={
+          workspace
+            ? {
+                id: workspace.id,
+                name: workspace.name,
+              }
+            : undefined
+        }
         onSuccess={refreshWorkspace}
       />
     </div>
   )
-} 
+}

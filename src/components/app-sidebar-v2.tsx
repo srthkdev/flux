@@ -16,6 +16,7 @@ import {
   Star,
   Info,
   MoreHorizontal,
+  FolderOpen,
 } from "lucide-react"
 
 import { UserProfile } from "@/components/user-profile"
@@ -123,7 +124,7 @@ const NavSection = ({
   
   return (
     <div className="my-2">
-      <div className="flex items-center px-3 py-1 mb-1">
+      <div className="flex items-center justify-between px-3 py-1 mb-1">
         {collapsible ? (
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
@@ -158,6 +159,9 @@ export function AppSidebarV2() {
   const [fetchError, setFetchError] = React.useState<string | null>(null)
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = React.useState(false)
   const [workspaceToEdit, setWorkspaceToEdit] = React.useState<WorkspaceProps | null>(null)
+  const [expandedWorkspaces, setExpandedWorkspaces] = React.useState<Record<string, boolean>>({})
+  const [loading, setLoading] = React.useState<Record<string, boolean>>({})
+  const [workspaceForms, setWorkspaceForms] = React.useState<Record<string, FormFromDB[]>>({})
   
   // Get the current user data from API
   React.useEffect(() => {
@@ -245,8 +249,33 @@ export function AppSidebarV2() {
     }
   }, [userData]);
 
-  const handleCreateForm = () => {
-    router.push('/dashboard/forms/new');
+  const handleCreateForm = async (workspaceId: string) => {
+    if (!workspaceId) return;
+    
+    try {
+      const formResponse = await fetch(`/api/workspace/${workspaceId}/forms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: 'Untitled',
+          description: '',
+        }),
+      });
+      
+      if (!formResponse.ok) {
+        throw new Error('Failed to create form');
+      }
+      
+      const newForm = await formResponse.json();
+      router.push(`/dashboard/forms/${newForm.id}`);
+      
+      // Refresh the forms for this workspace
+      fetchWorkspaceForms(workspaceId);
+    } catch (error) {
+      console.error('Error creating form:', error);
+    }
   };
 
   const handleCreateWorkspace = () => {
@@ -256,6 +285,40 @@ export function AppSidebarV2() {
   const handleEditWorkspace = (workspace: WorkspaceProps) => {
     setWorkspaceToEdit(workspace);
     setIsWorkspaceModalOpen(true);
+  };
+
+  // Function to toggle workspace expansion
+  const toggleWorkspaceExpansion = async (workspaceId: string) => {
+    // Toggle the state
+    setExpandedWorkspaces(prev => {
+      const newState = { ...prev, [workspaceId]: !prev[workspaceId] };
+      
+      // If we're expanding and don't have forms yet, fetch them
+      if (newState[workspaceId] && (!workspaceForms[workspaceId] || workspaceForms[workspaceId].length === 0)) {
+        fetchWorkspaceForms(workspaceId);
+      }
+      
+      return newState;
+    });
+  };
+  
+  // Function to fetch forms for a workspace
+  const fetchWorkspaceForms = async (workspaceId: string) => {
+    if (loading[workspaceId]) return;
+    
+    setLoading(prev => ({ ...prev, [workspaceId]: true }));
+    
+    try {
+      const response = await fetch(`/api/workspace/${workspaceId}/forms`);
+      if (response.ok) {
+        const formsData = await response.json();
+        setWorkspaceForms(prev => ({ ...prev, [workspaceId]: formsData }));
+      }
+    } catch (error) {
+      console.error(`Error fetching forms for workspace ${workspaceId}:`, error);
+    } finally {
+      setLoading(prev => ({ ...prev, [workspaceId]: false }));
+    }
   };
 
   // Show loading state for the sidebar
@@ -314,7 +377,13 @@ export function AppSidebarV2() {
                       variant="link" 
                       size="sm" 
                       className="p-0 h-auto flex items-center gap-1 text-primary" 
-                      onClick={handleCreateForm}
+                      onClick={() => {
+                        if (workspaces.length > 0) {
+                          handleCreateForm(workspaces[0].id);
+                        } else {
+                          handleCreateWorkspace();
+                        }
+                      }}
                     >
                       <Plus className="h-3.5 w-3.5" />
                       <span>Create a form</span>
@@ -328,7 +397,7 @@ export function AppSidebarV2() {
               <NavItem 
                 key={favorite.id} 
                 href={`/dashboard/forms/${favorite.form.id}`} 
-                icon={() => <span className="text-base">⭐</span>}
+                icon={Star}
                 active={pathname === `/dashboard/forms/${favorite.form.id}`}
               >
                 {favorite.form.title}
@@ -338,75 +407,125 @@ export function AppSidebarV2() {
         </NavSection>
         
         {/* Workspaces */}
-        <NavSection title="Workspace">
-          {workspaces.length === 0 ? (
-            <div className="px-3 py-2">
-              <div className="p-2 bg-muted/40 rounded-md text-xs">
-                <div className="flex items-start gap-2">
-                  <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium mb-1">No workspaces</p>
-                    <p className="text-muted-foreground">Create a workspace to organize your forms.</p>
-                    <Button 
-                      variant="link" 
-                      size="sm" 
-                      className="p-0 h-auto flex items-center gap-1 text-primary" 
-                      onClick={handleCreateWorkspace}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>Create workspace</span>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-              {workspaces.map((workspace) => (
-                <div key={workspace.id} className="mb-1">
-                  <div className="flex items-center">
-                    <Link 
-                      href={`/dashboard/workspace/${workspace.id}`}
-                      className="flex items-center px-3 py-1 gap-2 text-sm rounded-md transition-colors duration-200 text-foreground hover:bg-muted flex-grow"
-                    >
-                      <span className="text-base">{workspace.emoji || '📁'}</span>
-                      <span className="truncate">{workspace.name}</span>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 rounded-md"
-                      onClick={() => handleEditWorkspace(workspace)}
-                    >
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                  {workspace.forms && workspace.forms.length === 0 && (
-                    <div className="ml-8 mt-1">
+        <div className="my-2">
+          <div className="flex items-center justify-between px-0 py-1 mb-1">
+            <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">WORKSPACES</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 rounded-sm opacity-80 hover:opacity-100"
+              onClick={handleCreateWorkspace}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div className="space-y-1">
+            {workspaces.length === 0 ? (
+              <div className="px-3 py-2">
+                <div className="p-2 bg-muted/40 rounded-md text-xs">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium mb-1">No workspaces</p>
+                      <p className="text-muted-foreground">Create a workspace to organize your forms.</p>
                       <Button 
                         variant="link" 
                         size="sm" 
-                        className="p-0 h-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-primary" 
-                        onClick={() => router.push(`/dashboard/workspace/${workspace.id}/new`)}
+                        className="p-0 h-auto flex items-center gap-1 text-primary" 
+                        onClick={handleCreateWorkspace}
                       >
-                        <Plus className="h-3 w-3" />
-                        <span>Add form</span>
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Create workspace</span>
                       </Button>
                     </div>
-                  )}
+                  </div>
                 </div>
-              ))}
-              
-              <NavItem 
-                href="/dashboard/workspace" 
-                icon={() => <span className="text-base">🔍</span>}
-                active={pathname === "/dashboard/workspace"}
-              >
-                View all workspaces
-              </NavItem>
-            </>
-          )}
-        </NavSection>
+              </div>
+            ) : (
+              <>
+                {workspaces.map((workspace) => (
+                  <div key={workspace.id} className="mb-1">
+                    <div className="flex items-center">
+                      <button
+                        onClick={() => toggleWorkspaceExpansion(workspace.id)}
+                        className="hover:bg-muted rounded-sm"
+                      >
+                        {expandedWorkspaces[workspace.id] ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </button>
+                      <Link 
+                        href={`/dashboard/workspace/${workspace.id}`}
+                        className="flex items-center px-2 py-1 gap-2 text-sm rounded-md transition-colors duration-200 text-foreground hover:bg-muted flex-grow"
+                      >
+                        <span className="truncate font-medium">{workspace.name}</span>
+                      </Link>
+                      <div className="flex items-center">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 rounded-sm opacity-80 hover:opacity-100"
+                          onClick={() => handleEditWorkspace(workspace)}
+                        >
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 rounded-sm opacity-80 hover:opacity-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCreateForm(workspace.id);
+                          }}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    {expandedWorkspaces[workspace.id] && (
+                      <div className="ml-6 mt-1 space-y-0.5">
+                        {loading[workspace.id] ? (
+                          <div className="py-2 px-3">
+                            <div className="h-4 bg-muted/40 rounded animate-pulse w-2/3 mb-2" />
+                            <div className="h-4 bg-muted/40 rounded animate-pulse w-1/2" />
+                          </div>
+                        ) : workspaceForms[workspace.id]?.length ? (
+                          workspaceForms[workspace.id].map(form => (
+                            <Link
+                              key={form.id}
+                              href={`/dashboard/forms/${form.id}`}
+                              className={`block px-3 py-1 text-sm rounded-md ${
+                                pathname === `/dashboard/forms/${form.id}` 
+                                  ? 'bg-secondary font-medium' 
+                                  : 'hover:bg-secondary/50'
+                              }`}
+                            >
+                              {form.title}
+                            </Link>
+                          ))
+                        ) : (
+                          <div className="px-3 py-1 text-sm text-muted-foreground">
+                            No forms
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                <NavItem 
+                  href="/dashboard/workspace" 
+                  icon={FolderOpen}
+                  active={pathname === "/dashboard/workspace"}
+                >
+                  View all workspaces
+                </NavItem>
+              </>
+            )}
+          </div>
+        </div>
       </div>
       
       {/* Bottom section */}

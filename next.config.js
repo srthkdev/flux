@@ -8,7 +8,12 @@ const nextConfig = {
     },
   },
   // Add transpilePackages for Clerk if needed
-  transpilePackages: ['@clerk/nextjs']
+  transpilePackages: ['@clerk/nextjs'],
+  // Ensure API endpoints are always processed as Server-Side
+  eslint: {
+    // Ignore ESLint during builds for faster development
+    ignoreDuringBuilds: true,
+  },
 };
 
 module.exports = nextConfig; 

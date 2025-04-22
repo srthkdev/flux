@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prismadb from '@/lib/db'
-import { authService } from '@/lib/services/auth-service'
 import { getAuth } from '@clerk/nextjs/server'
+import { authService } from '@/lib/services/auth-service'
 
 // Mark as dynamic to prevent static analysis issues
 export const dynamic = 'force-dynamic';
@@ -18,20 +18,9 @@ async function getDbUserId(clerkUserId: string | null): Promise<string | null> {
   return user?.id || null;
 }
 
-// Get forms for a specific workspace
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// Get all forms for the authenticated user
+export async function GET(request: NextRequest) {
   try {
-    const { id } = params;
-    
-    if (!id) {
-      return new NextResponse(JSON.stringify({ error: 'Workspace ID is required' }), {
-        status: 400,
-      });
-    }
-    
     // Get authenticated user
     const { userId: clerkUserId } = getAuth(request);
     if (!clerkUserId) {
@@ -48,17 +37,9 @@ export async function GET(
       });
     }
     
-    // Verify user has access to this workspace
-    const hasAccess = await authService.verifyWorkspaceAccess(id, userId);
-    if (!hasAccess) {
-      return new NextResponse(JSON.stringify({ error: 'Unauthorized access to workspace' }), {
-        status: 403,
-      });
-    }
-    
+    // Fetch forms for the user
     const forms = await prismadb.form.findMany({
       where: { 
-        workspaceId: id, 
         userId,
         isDeleted: false,
       },
@@ -67,25 +48,21 @@ export async function GET(
     
     return NextResponse.json(forms);
   } catch (error) {
-    console.error('Error fetching workspace forms:', error);
+    console.error('Error fetching forms:', error);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), {
       status: 500,
     });
   }
 }
 
-// Create a new form in a workspace
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// Create a new form (without associating to a workspace)
+export async function POST(request: NextRequest) {
   try {
-    const { id } = params;
     const body = await request.json();
-    const { title, description } = body;
+    const { title } = body;
     
-    if (!id || !title) {
-      return new NextResponse(JSON.stringify({ error: 'Missing required fields' }), {
+    if (!title) {
+      return new NextResponse(JSON.stringify({ error: 'Title is required' }), {
         status: 400,
       });
     }
@@ -106,22 +83,14 @@ export async function POST(
       });
     }
     
-    // Verify user has access to this workspace
-    const hasAccess = await authService.verifyWorkspaceAccess(id, userId);
-    if (!hasAccess) {
-      return new NextResponse(JSON.stringify({ error: 'Unauthorized access to workspace' }), {
-        status: 403,
-      });
-    }
-    
+    // Create the form in the database
     const form = await prismadb.form.create({
       data: {
         title,
-        description: description || '',
         userId,
-        workspaceId: id,
-        isDeleted: false,
-      }
+        published: false,
+        schema: [],
+      },
     });
     
     return NextResponse.json(form);

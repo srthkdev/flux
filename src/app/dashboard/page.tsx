@@ -63,7 +63,7 @@ export default function DashboardPage() {
         const userData = await response.json();
         
         // Fetch workspaces
-        const workspacesResponse = await fetch(`/api/workspace?userId=${userData.id}`);
+        const workspacesResponse = await fetch(`/api/workspace`);
         if (!workspacesResponse.ok) {
           throw new Error('Failed to fetch workspaces');
         }
@@ -73,7 +73,7 @@ export default function DashboardPage() {
         // Get form counts for each workspace
         const workspacesWithFormCounts = await Promise.all(
           workspacesData.map(async (workspace: any) => {
-            const formsResponse = await fetch(`/api/workspace/${workspace.id}/forms?userId=${userData.id}`);
+            const formsResponse = await fetch(`/api/workspace/${workspace.id}/forms`);
             if (!formsResponse.ok) {
               return {
                 ...workspace,
@@ -92,8 +92,13 @@ export default function DashboardPage() {
         setWorkspaces(workspacesWithFormCounts);
         
         // Fetch user's forms
-        const userForms = await workspaceService.getUserForms(userData.id);
-        setForms(userForms);
+        const formsResponse = await fetch(`/api/forms`);
+        if (!formsResponse.ok) {
+          throw new Error('Failed to fetch forms');
+        }
+        
+        const formsData = await formsResponse.json();
+        setForms(formsData);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -169,7 +174,7 @@ export default function DashboardPage() {
               >
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-2xl">{workspace.emoji || '📁'}</span>
+                    
                     <CardTitle className="text-lg">{workspace.name}</CardTitle>
                   </div>
                 </CardHeader>

@@ -3,7 +3,9 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
-import { PanelLeft } from "lucide-react"
+import { PanelLeft, ChevronDown, ChevronRight, Plus, MoreHorizontal } from "lucide-react"
+import Link from "next/link"
+import { useRouter, usePathname } from "next/navigation"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -182,85 +184,142 @@ const Sidebar = React.forwardRef<
     ref
   ) => {
     const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+    const router = useRouter()
+    const pathname = usePathname()
+    const [workspaces, setWorkspaces] = React.useState<Workspace[]>([])
+    const [forms, setForms] = React.useState<Form[]>([])
+    const [expandedWorkspaces, setExpandedWorkspaces] = React.useState<Record<string, boolean>>({})
+    const [isLoading, setIsLoading] = React.useState(true)
 
-    if (collapsible === "none") {
+    React.useEffect(() => {
+      const fetchData = async () => {
+        try {
+          // Fetch workspaces
+          const workspacesResponse = await fetch('/api/workspace')
+          if (!workspacesResponse.ok) {
+            throw new Error('Failed to fetch workspaces')
+          }
+          const workspacesData = await workspacesResponse.json()
+          setWorkspaces(workspacesData)
+
+          // Set first workspace as expanded by default
+          if (workspacesData.length > 0) {
+            setExpandedWorkspaces({ [workspacesData[0].id]: true })
+            
+            // Fetch forms for this workspace
+            const formsResponse = await fetch(`/api/workspace/${workspacesData[0].id}/forms`)
+            if (formsResponse.ok) {
+              const formsData = await formsResponse.json()
+              setForms(formsData)
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch sidebar data:', error)
+        } finally {
+          setIsLoading(false)
+        }
+      }
+
+      fetchData()
+    }, [])
+
+    const toggleWorkspace = async (workspaceId: string) => {
+      // Toggle expansion state
+      const newExpandedState = {
+        ...expandedWorkspaces,
+        [workspaceId]: !expandedWorkspaces[workspaceId]
+      }
+      
+      setExpandedWorkspaces(newExpandedState)
+      
+      // If expanding, fetch forms for this workspace
+      if (newExpandedState[workspaceId] && !forms.some(form => form.workspaceId === workspaceId)) {
+        try {
+          const response = await fetch(`/api/workspace/${workspaceId}/forms`)
+          if (response.ok) {
+            const formsData = await response.json()
+            setForms(prevForms => [...prevForms, ...formsData])
+          }
+        } catch (error) {
+          console.error('Failed to fetch forms for workspace:', error)
+        }
+      }
+    }
+
+    const handleCreateForm = (workspaceId: string) => {
+      router.push(`/dashboard/workspace/${workspaceId}/new-form`)
+    }
+
+    if (isLoading) {
       return (
-        <div
-          className={cn(
-            "flex h-full w-[--sidebar-width] flex-col bg-sidebar text-sidebar-foreground",
-            className
-          )}
-          ref={ref}
-          {...props}
-        >
-          {children}
+        <div className="min-h-screen w-64 border-r border-border p-4">
+          <div className="space-y-4">
+            <div className="h-6 w-24 bg-muted/30 animate-pulse rounded"></div>
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-8 bg-muted/30 animate-pulse rounded"></div>
+            ))}
+          </div>
         </div>
       )
     }
 
-    if (isMobile) {
-      return (
-        <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-          <SheetContent
-            data-sidebar="sidebar"
-            data-mobile="true"
-            className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
-            style={
-              {
-                "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-              } as React.CSSProperties
-            }
-            side={side}
-          >
-            <SheetHeader className="sr-only">
-              <SheetTitle>Sidebar</SheetTitle>
-              <SheetDescription>Displays the mobile sidebar.</SheetDescription>
-            </SheetHeader>
-            <div className="flex h-full w-full flex-col">{children}</div>
-          </SheetContent>
-        </Sheet>
-      )
-    }
-
     return (
-      <div
-        ref={ref}
-        className="group peer hidden text-sidebar-foreground md:block"
-        data-state={state}
-        data-collapsible={state === "collapsed" ? collapsible : ""}
-        data-variant={variant}
-        data-side={side}
-      >
-        {/* This is what handles the sidebar gap on desktop */}
-        <div
-          className={cn(
-            "relative w-[--sidebar-width] bg-transparent transition-[width] duration-200 ease-linear",
-            "group-data-[collapsible=offcanvas]:w-0",
-            "group-data-[side=right]:rotate-180",
-            variant === "floating" || variant === "inset"
-              ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]"
-              : "group-data-[collapsible=icon]:w-[--sidebar-width-icon]"
-          )}
-        />
-        <div
-          className={cn(
-            "fixed inset-y-0 z-10 hidden h-svh w-[--sidebar-width] transition-[left,right,width] duration-200 ease-linear md:flex",
-            side === "left"
-              ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
-              : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
-            // Adjust the padding for floating and inset variants.
-            variant === "floating" || variant === "inset"
-              ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
-              : "group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l",
-            className
-          )}
-          {...props}
-        >
-          <div
-            data-sidebar="sidebar"
-            className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
-          >
-            {children}
+      <div className="min-h-screen w-64 border-r border-border pt-2">
+        <div className="font-inter text-sm">
+          <h2 className="font-medium text-sm px-4 pt-2 pb-1">Workspaces</h2>
+          
+          <div className="space-y-1">
+            {workspaces.map(workspace => (
+              <div key={workspace.id} className="px-2">
+                <div 
+                  className="flex items-center justify-between px-2 py-1 text-sm rounded-md hover:bg-secondary cursor-pointer"
+                  onClick={() => toggleWorkspace(workspace.id)}
+                >
+                  <div className="flex items-center">
+                    {expandedWorkspaces[workspace.id] ? (
+                      <ChevronDown className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                    )}
+                    <span className="font-medium text-xs">{workspace.name}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleCreateForm(workspace.id)
+                      }}
+                      className="p-0.5 hover:bg-background rounded"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                    <button className="p-0.5 hover:bg-background rounded ml-0.5">
+                      <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
+                
+                {expandedWorkspaces[workspace.id] && (
+                  <div className="ml-3 mt-1 space-y-1">
+                    {forms
+                      .filter(form => form.workspaceId === workspace.id)
+                      .map(form => (
+                        <Link
+                          key={form.id}
+                          href={`/dashboard/forms/${form.id}`}
+                          className={`block px-3 py-1 text-xs rounded-md ${
+                            pathname === `/dashboard/forms/${form.id}` 
+                              ? 'bg-secondary font-medium' 
+                              : 'hover:bg-secondary/50'
+                          }`}
+                        >
+                          {form.title}
+                        </Link>
+                      ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
