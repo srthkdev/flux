@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
+import { Toaster } from "@/components/ui/toaster";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "FormPilot - AI-First Form Builder",
-  description: "Build beautiful forms with AI assistance",
+  title: "Flux",
+  description: "Superintelligent Form Builder with Agents and Memory",
 };
 
 export default function RootLayout({
@@ -21,6 +22,7 @@ export default function RootLayout({
         <ClerkProvider>
           {children}
         </ClerkProvider>
+        <Toaster />
       </body>
     </html>
   );

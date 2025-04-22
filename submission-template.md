@@ -1,111 +1,119 @@
 ---
-
 name: Hackathon Project Submission
 about: Submit your project for the Global Agent Hackathon
-title: "[Project Submission] Flux: AI-Native Form Builder with Agentic Intelligence"
+title: "[Project Submission] Flux: Superintelligent Form Builder with Agents and Memory"
 labels: submission
 assignees: ''
-
 ---
 
 # Project Title
 
-**Flux: AI-Native Form Builder with Agentic Intelligence**
+**Flux: Superintelligent Form Builder with Agents and Memory**
 
 ## Overview of the Idea
 
-Flux is an intelligent form creation and response analysis tool that allows users to build forms using natural language prompts, manage them through contextual commands, and receive AI-powered summaries of submissions. The platform integrates deeply with agentic reasoning systems to eliminate manual UI friction and deliver a fluid, guided experience powered by large language models.
+Flux is a next-gen form platform powered by intelligent agents, multi-step tool use, and memory. Users can describe what they want — and Flux builds the form, wires the logic, and connects responses to insights or external APIs. It doesn’t just store responses — it understands them. We’ve integrated Agno, Mem0, and Firecrawl to power this intelligence layer.
 
 ## Project Goal
 
-To showcase how composable, intelligent agents can transform user interaction by reasoning across UI intent, form schema logic, and backend responses — all using natural language and memory-backed workflows.
+Showcase how agentic reasoning, persistent memory, and multi-step tool use through user-defined APIs can transform basic forms into smart interfaces — capable of adapting, understanding, and triggering actions automatically.
 
 ## How It Works
 
-- **User Flow**:
-
-  1. User logs in securely with Clerk
-  2. On the dashboard, they click “New Form”
-  3. They describe their goal (e.g. “Create a job application form with file upload and conditional email field”)
-  4. Agno orchestrates a multi-step reasoning process that:
-     - Understands the user's prompt
-     - Plans which fields are needed
-     - Generates a full schema with validations
-     - Updates the UI state in real-time
-  5. Users refine forms via a slash-command menu or Cmd+K window
-  6. Cmd+/ opens an AI chat with full form context for debugging, validation, or transformation
-  7. All submissions flow into a tabular view with filters, AI summarization, and trends
-
-- **Core Functionality**:
-
-  - Prompt-to-form generation using LLMs
-  - AI field recommendations and validation generation
-  - Real-time schema updates via command UI
-  - Multi-turn agent chat grounded in form memory (via Mem0)
-  - Response analysis with summaries and auto-tagging
-
-- **Multimodal Elements**:
-
-  - Inputs: Natural language prompt, typed commands
-  - Outputs: Visual forms, AI summaries, tables, insights
+1. User signs in with Clerk
+2. Clicks “New Form” and enters a goal like: *“Create a product feedback form with sentiment tagging and Slack alerts for angry customers”*
+3. Agno interprets and creates the form schema + validations
+4. Mem0 stores context and builds on it — agents learn from form evolution and past edits
+5. Cmd+K menu and `/commands` let you control structure and behavior
+6. Cmd+/ opens form-aware agent chat for editing, analysis, or help
+7. On submission, agents analyze, flag trends, summarize, and trigger tools (Slack, Notion, Airtable, Gmail, etc.)
+8. Firecrawl scrapes external links (e.g., portfolios) and returns structured signals to enrich response understanding
+9. Users can configure custom APIs, select tools, and define multi-step workflows — including when and how to trigger, what message or data to pass, and conditional logic for execution.
 
 ## Tools Used
 
-- **Agno** – Agent framework to manage prompt workflows, invoke tasks, and chain reasoning
-- **Agno Reasoning Engine** – Enables step-by-step breakdown of user intent and form logic into executable code transformations
-- **Gemini API** – Used as the underlying LLM
-- **Mem0** – Stores context and historical memory of each form
-- **Next.js 14 + App Router** – App frontend and backend routing
-- **Tailwind CSS + Shadcn UI** – Design system and component framework
-- **Bun** – Runtime and fast package manager
-- **Zustand** – Local schema state management
-- **TanStack Query** – Form fetch + sync
-- **TanStack Table** – Submission visualization
-- **React Hook Form + Zod** – Form control and validation
-- **NeonDB + Prisma** – Backend DB layer
-- **Clerk** – Authentication system
+- **Agno** – Agentic orchestration layer
+- **Mem0** – Memory for schema, sessions, user history
+- **Firecrawl** – Scraping external URLs from form fields
+- **Gemini API** – Core LLM
+- **Next.js 14** – Fullstack app
+- **Tailwind CSS + Shadcn UI** – UI system
+- **Bun** – Runtime
+- **Zustand** – State management
+- **TanStack Query/Table** – Data syncing & display
+- **React Hook Form + Zod** – Validation
+- **NeonDB + Prisma** – DB layer
+- **Clerk** – Auth
+
+## Use Cases
+
+### 1. **Product Feedback Forms**
+- Auto-tag responses by sentiment
+- Alert product managers if negative trends spike
+- Summarize most-requested features
+- Trigger a Slack alert + create Notion task for high-priority feedback
+
+### 2. **Hiring Forms**
+- Auto-evaluate GitHub, portfolio links (via Firecrawl)
+- Highlight candidates with deployed projects
+- Score technical alignment with job description
+- If score > 80%, auto-send Gmail invitation + add to Airtable pipeline
+
+### 3. **Event Registration**
+- Suggest event improvements based on past feedback
+- Group attendees by interest/themes
+- Predict attendance drops based on signup behavior
+- Multi-step: First analyze comments with LLM, then notify team via Slack and update Google Sheet
+
+### 4. **Course/Workshop Applications**
+- Flag duplicate or fake entries
+- Suggest scholarship candidates based on goals
+- Summarize applicant backgrounds for instructors
+- Trigger onboarding email + send data to internal CRM
+
+## API and Tool Customization
+
+- Users can configure any API endpoint to be called on submission
+- Prompt the agent: *"If response mentions 'urgent bug', send Slack alert and create GitHub issue with summary"*
+- Tool selection UI: Choose from Gmail, Slack, Notion, Google Sheets, Airtable, or your own custom tools
+- Support for multi-step tool use: 
+  - Step 1: Search company name on Google
+  - Step 2: If result contains a job page → Send Slack alert
+  - Step 3: Email candidate if matched
+- Memory ensures past configurations, prompt styles, and tool usage patterns are retained for future automation
+- Reasoning enables the agent to dynamically determine which tools to invoke based on context
 
 ## UI Approach
 
-- Clean, minimal layout using sidebar navigation
-- Floating command menus with animated transitions
-- Form canvas supports contextual commands and inline suggestions
-- Summary dashboards with AI-generated highlights
-- Responsive design optimized for web and tablet
+- Clean layout with sidebar
+- Cmd+K floating menu
+- Cmd+/ opens agent chat
+- Table view with filters, AI summaries, scraped info
+- Fully responsive
 
 ## Visuals
 
-- Full layout screenshots:
-  - Hero and form creation prompt
-  - Form builder with command mode
-  - Agent chat panel
-  - Submission dashboard with smart summaries
-- Architecture diagram (agent flow, memory, LLM)
-- (Optional) Figma prototype
+- Builder UI
+- Cmd+K interaction
+- Agent chat
+- Submission dashboard
+- Architecture (Agno + Mem0 + Firecrawl)
 
-## Team Information
+## Team Info
 
-- **Team Lead**: `@srthkdev` – Developer, Fullstack Engineer, 
+- **Team Lead**: `@srthkdev`
 - **Team Members**: Solo
-- **Background/Experience**: Fullstack and AI workflow developer with experience in building productivity-first LLM tools.
 
-## Prize Category (leave blank, to be assigned by judges)
-- [ ] Best use of Agno
-- [ ] Best use of Firecrawl
-- [ ] Best use of Mem0
-- [ ] Best use of Graphlit
-- [ ] Best use of Browser Use
-- [ ] Best Overall Project
+## Prize Category
 
+- [x] Best use of Agno
+- [x] Best use of Mem0
+- [x] Best Overall Project
 
 ## Demo Video Link
 
-*Link to be added before deadline*
+*To be added before deadline*
 
-## Additional Notes
+## Final Notes
 
-- Agno agents are used to interpret vague user requests into precise form schemas
-- Reasoning engine dynamically transforms user intent into chain-of-action workflows
-- All interactions are enriched with memory (via Mem0), ensuring agents can recall and improve forms over time
-- Designed to demonstrate the real-world potential of agent-first productivity apps
-
+Forms today are dumb. Flux upgrades them. It remembers, it reasons, it acts. With agents, memory, scraping, reasoning, multi-step tool use, and user-defined APIs, Flux becomes a programmable assistant on top of form workflows. Whether you're triggering Slack alerts, scraping links, or chaining tools like Gmail → Notion → Sheets, Flux gives you the control and intelligence traditional tools lack.

@@ -1,0 +1,248 @@
+"use client"
+
+import React, { useState, useEffect } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { ArrowLeft, Loader2, Save, Trash2 } from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Separator } from '@/components/ui/separator'
+
+interface FormData {
+  id: string
+  title: string
+  description?: string
+  published: boolean
+  workspaceId?: string
+  updatedAt: Date
+}
+
+export default function FormSettingsPage() {
+  const params = useParams()
+  const router = useRouter()
+  const formId = params.id as string
+  
+  const [form, setForm] = useState<FormData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  
+  useEffect(() => {
+    const fetchForm = async () => {
+      try {
+        const response = await fetch(`/api/forms/${formId}`)
+        if (!response.ok) {
+          throw new Error('Failed to fetch form')
+        }
+        
+        const formData = await response.json()
+        setForm(formData)
+      } catch (error) {
+        console.error('Error fetching form:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    fetchForm()
+  }, [formId])
+  
+  const handleInputChange = (field: keyof FormData, value: any) => {
+    if (!form) return
+    
+    setForm({
+      ...form,
+      [field]: value
+    })
+  }
+  
+  const saveSettings = async () => {
+    if (!form) return
+    
+    setIsSaving(true)
+    
+    try {
+      const response = await fetch(`/api/forms/${formId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to save form settings')
+      }
+      
+      const updatedForm = await response.json()
+      setForm(updatedForm)
+    } catch (error) {
+      console.error('Error saving form settings:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  const deleteForm = async () => {
+    try {
+      const response = await fetch(`/api/forms/${formId}`, {
+        method: 'DELETE',
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete form')
+      }
+      
+      router.push('/dashboard/workspace')
+    } catch (error) {
+      console.error('Error deleting form:', error)
+    }
+  }
+  
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+  
+  if (!form) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold mb-4">Form not found</h1>
+        <Button onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Go Back
+        </Button>
+      </div>
+    )
+  }
+  
+  return (
+    <div className="container mx-auto py-6 px-4 max-w-5xl">
+      <div className="flex items-center mb-8">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="mr-2" 
+          onClick={() => router.back()}
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <h1 className="text-2xl font-bold">{form.title} - Settings</h1>
+      </div>
+      
+      <div className="grid gap-6">
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-xl font-semibold mb-4">Form Information</h2>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="title">Form Title</Label>
+              <Input
+                id="title"
+                value={form.title}
+                onChange={(e) => handleInputChange('title', e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="description">Form Description</Label>
+              <Textarea
+                id="description"
+                value={form.description || ''}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                className="mt-1"
+                placeholder="Provide a description for your form"
+              />
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-xl font-semibold mb-4">Form Status</h2>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium">Published</h3>
+              <p className="text-sm text-muted-foreground">
+                When published, people can submit responses to your form.
+              </p>
+            </div>
+            <Switch
+              checked={form.published}
+              onCheckedChange={(checked: boolean) => handleInputChange('published', checked)}
+            />
+          </div>
+          
+          {form.published && (
+            <div className="mt-4 p-4 bg-blue-50 text-blue-800 rounded-md text-sm">
+              Your form is published. Anyone with the link can submit responses.
+            </div>
+          )}
+        </div>
+        
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-xl font-semibold mb-4 text-red-600">Danger Zone</h2>
+          <Separator className="mb-4" />
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium">Delete Form</h3>
+              <p className="text-sm text-muted-foreground">
+                Once deleted, this form and all its responses will be permanently removed.
+              </p>
+            </div>
+            <Button 
+              variant="destructive"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Form
+            </Button>
+          </div>
+        </div>
+        
+        <div className="flex justify-end mt-2">
+          <Button onClick={saveSettings} disabled={isSaving}>
+            <Save className="h-4 w-4 mr-2" />
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </div>
+      </div>
+      
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Form</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this form? This action cannot be undone 
+              and all responses will be permanently removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={deleteForm}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+} 

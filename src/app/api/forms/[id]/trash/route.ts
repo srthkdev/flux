@@ -1,0 +1,30 @@
+import { NextRequest, NextResponse } from 'next/server'
+import prismadb from '@/lib/db'
+
+// Move a form to trash
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = params
+    
+    if (!id) {
+      return new NextResponse(JSON.stringify({ error: 'Form ID is required' }), {
+        status: 400,
+      })
+    }
+    
+    const form = await prismadb.form.update({
+      where: { id },
+      data: { isInTrash: true }
+    })
+    
+    return NextResponse.json(form)
+  } catch (error) {
+    console.error('Error moving form to trash:', error)
+    return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), {
+      status: 500,
+    })
+  }
+} 
