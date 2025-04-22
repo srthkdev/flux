@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import prismadb from '@/lib/db';
 
+// Mark as dynamic to prevent static analysis issues
+export const dynamic = 'force-dynamic';
+
 // Get user info and create in database if doesn't exist
 export async function GET() {
   try {

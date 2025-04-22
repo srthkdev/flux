@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prismadb from '@/lib/db'
 
+// This endpoint is dynamic and will be server-rendered
+export const dynamic = 'force-dynamic';
+
 // Get responses for a specific form
 export async function GET(
-  request: NextRequest,
+  _request: Request,
   { params }: { params: { id: string } }
 ) {
   try {

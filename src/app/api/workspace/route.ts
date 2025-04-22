@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prismadb from '@/lib/db'
 
+// Mark as dynamic to prevent static analysis issues
+export const dynamic = 'force-dynamic';
+
 // Create a new workspace
 export async function POST(request: NextRequest) {
   try {
