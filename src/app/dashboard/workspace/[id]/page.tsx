@@ -8,6 +8,7 @@ import { useUser } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { WorkspaceModal } from "@/components/workspace-modal"
+import { DashboardHeader } from "@/components/dashboard-header"
 
 interface FormItem {
   id: string
@@ -183,95 +184,87 @@ export default function WorkspaceDetailPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <div className="flex flex-col space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-medium">{workspace.name}</h1>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 opacity-60 hover:opacity-100"
-              onClick={handleEditWorkspace}
-            >
-              <MoreHorizontal className="h-4 w-4" />
+    <>
+      <DashboardHeader 
+        workspaceId={workspaceId}
+        workspaceName={workspace.name}
+      />
+      
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <div className="flex flex-col space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-medium">{workspace.name}</h1>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-60 hover:opacity-100"
+                onClick={handleEditWorkspace}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <Button variant="default" className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateForm}>
+              <Plus className="h-4 w-4 mr-2" />
+              New form
             </Button>
           </div>
 
-          <Button variant="default" className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateForm}>
-            <Plus className="h-4 w-4 mr-2" />
-            New form
-          </Button>
-        </div>
+          <hr className="border-t border-gray-200" />
 
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search"
-            className="pl-10 bg-gray-50 border-gray-200"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          {filteredForms.length > 0 ? (
-            filteredForms.map((form) => (
-              <div
-                key={form.id}
-                className="border border-gray-200 rounded-md hover:border-gray-300 transition-all cursor-pointer"
-                onClick={() => router.push(`/dashboard/forms/${form.id}`)}
-              >
-                <div className="p-4">
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-medium">{form.title}</h3>
-                      {!form.published && (
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Draft</span>
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-500 mt-1">
-                      {form.published && <span>1 submission · </span>}
-                      Edited {formatTimeAgo(form.updatedAt)}
+          <div className="space-y-2">
+            {filteredForms.length > 0 ? (
+              filteredForms.map((form) => (
+                <div
+                  key={form.id}
+                  className="border border-gray-200 rounded-md hover:border-gray-300 transition-all cursor-pointer"
+                  onClick={() => router.push(`/dashboard/forms/${form.id}`)}
+                >
+                  <div className="p-4">
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-medium">{form.title}</h3>
+                        {!form.published && (
+                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Draft</span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500 mt-1">
+                        {form.published && <span>1 submission · </span>}
+                        Edited {formatTimeAgo(form.updatedAt)}
+                      </div>
                     </div>
                   </div>
                 </div>
+              ))
+            ) : (
+              <div className="text-center py-12">
+                {searchQuery ? (
+                  <p className="text-gray-500">No forms match your search.</p>
+                ) : (
+                  <>
+                    <p className="text-gray-500 mb-4">No forms yet. Create your first form to get started.</p>
+                    <Button onClick={handleCreateForm}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create form
+                    </Button>
+                  </>
+                )}
               </div>
-            ))
-          ) : (
-            <div className="text-center py-12">
-              {searchQuery ? (
-                <p className="text-gray-500">No forms match your search.</p>
-              ) : (
-                <>
-                  <p className="text-gray-500 mb-4">No forms yet. Create your first form to get started.</p>
-                  <Button onClick={handleCreateForm}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create form
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Edit Workspace Modal */}
       <WorkspaceModal
         isOpen={isEditModalOpen}
-        onOpenChange={(open) => {
-          setIsEditModalOpen(open)
+        onOpenChange={(open) => setIsEditModalOpen(open)}
+        workspaceToEdit={{
+          id: workspace.id,
+          name: workspace.name,
         }}
-        workspaceToEdit={
-          workspace
-            ? {
-                id: workspace.id,
-                name: workspace.name,
-              }
-            : undefined
-        }
         onSuccess={refreshWorkspace}
       />
-    </div>
+    </>
   )
 }

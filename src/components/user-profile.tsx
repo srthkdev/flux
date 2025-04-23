@@ -78,8 +78,7 @@ export function UserProfile() {
         className="h-7 w-7 p-0 rounded-full hover:bg-sidebar-accent"
         onClick={() => router.push('/user-profile')}
       >
-        <ChevronRight className="h-4 w-4" />
-        <span className="sr-only">Collapse sidebar</span>
+       
       </Button>
     </div>
   );

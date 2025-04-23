@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from '@/components/theme-provider'
+import { DataProvider } from '@/contexts/DataContext';
 
 // Configure Inter font
 const inter = Inter({
@@ -13,9 +14,24 @@ const inter = Inter({
   variable: '--font-inter',
 })
 
+// Use CSS variables to define Georgia font
+const customFonts = `
+:root {
+  --font-georgia: Georgia, serif;
+}
+`;
+
 export const metadata: Metadata = {
-  title: "FormPilot",
-  description: "An intuitive form builder for all your data collection needs",
+  title: "Flux",
+  description: "Simple forms and surveys for everyone",
+  icons: {
+    icon: [
+      {
+        url: "/favicon.svg",
+        type: "image/svg+xml",
+      },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -26,6 +42,9 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" className={`${inter.variable} font-sans`}>
+        <head>
+          <style dangerouslySetInnerHTML={{ __html: customFonts }} />
+        </head>
         <body className="min-h-screen antialiased">
           <ThemeProvider
             attribute="class"
@@ -33,7 +52,9 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            {children}
+            <DataProvider>
+              {children}
+            </DataProvider>
             <Toaster />
           </ThemeProvider>
         </body>
