@@ -804,6 +804,21 @@ const SidebarMenuSubButton = React.forwardRef<
 })
 SidebarMenuSubButton.displayName = "SidebarMenuSubButton"
 
+// Add these interface declarations
+interface Workspace {
+  id: string
+  name: string
+  emoji?: string
+}
+
+interface Form {
+  id: string
+  title: string
+  description?: string
+  workspaceId: string
+  updatedAt: string
+}
+
 export {
   Sidebar,
   SidebarContent,
