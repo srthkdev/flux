@@ -77,8 +77,34 @@ export function FormCard({ form, onDelete }: FormCardProps) {
   }
   
   const confirmDelete = async () => {
-    onDelete(form.id)
-    setShowDeleteDialog(false)
+    try {
+      // Use the trash API endpoint to move the form to trash
+      const response = await fetch(`/api/forms/${form.id}/trash`, {
+        method: 'PATCH',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to move form to trash');
+      }
+      
+      // Call the parent component's onDelete handler to update UI
+      onDelete(form.id);
+      setShowDeleteDialog(false);
+      
+      toast({
+        title: 'Form moved to trash',
+        description: 'The form has been moved to trash.',
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error moving form to trash:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to move form to trash',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
   }
 
   return (
@@ -180,9 +206,9 @@ export function FormCard({ form, onDelete }: FormCardProps) {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Form</DialogTitle>
+            <DialogTitle>Move to Trash</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this form? This action cannot be undone.
+              Are you sure you want to move this form to trash? You can restore it from the trash later.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">
@@ -190,7 +216,7 @@ export function FormCard({ form, onDelete }: FormCardProps) {
               Cancel
             </Button>
             <Button variant="destructive" onClick={confirmDelete}>
-              Delete
+              Move to Trash
             </Button>
           </DialogFooter>
         </DialogContent>

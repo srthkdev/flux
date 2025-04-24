@@ -101,17 +101,21 @@ export default function FormSettingsPage() {
   
   const deleteForm = async () => {
     try {
-      const response = await fetch(`/api/forms/${formId}`, {
-        method: 'DELETE',
-      })
+      const response = await fetch(`/api/forms/${formId}/trash`, {
+        method: 'PATCH',
+      });
       
       if (!response.ok) {
-        throw new Error('Failed to delete form')
+        throw new Error('Failed to move form to trash');
       }
       
-      router.push('/dashboard/workspace')
+      if (form?.workspaceId) {
+        router.push(`/dashboard/workspace/${form.workspaceId}`);
+      } else {
+        router.push('/dashboard/workspace');
+      }
     } catch (error) {
-      console.error('Error deleting form:', error)
+      console.error('Error moving form to trash:', error);
     }
   }
   
@@ -207,9 +211,9 @@ export default function FormSettingsPage() {
             
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-medium">Delete Form</h3>
+                <h3 className="font-medium">Move to Trash</h3>
                 <p className="text-sm text-muted-foreground">
-                  Once deleted, this form and all its responses will be permanently removed.
+                  Move this form to trash. You can restore it from the trash later.
                 </p>
               </div>
               <Button 
@@ -217,7 +221,7 @@ export default function FormSettingsPage() {
                 onClick={() => setShowDeleteDialog(true)}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Delete Form
+                Move to Trash
               </Button>
             </div>
           </div>
@@ -233,10 +237,9 @@ export default function FormSettingsPage() {
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Delete Form</DialogTitle>
+              <DialogTitle>Move to Trash</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete this form? This action cannot be undone 
-                and all responses will be permanently removed.
+                Are you sure you want to move this form to trash? You can restore it from the trash later.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="mt-4">
@@ -244,7 +247,7 @@ export default function FormSettingsPage() {
                 Cancel
               </Button>
               <Button variant="destructive" onClick={deleteForm}>
-                Delete
+                Move to Trash
               </Button>
             </DialogFooter>
           </DialogContent>

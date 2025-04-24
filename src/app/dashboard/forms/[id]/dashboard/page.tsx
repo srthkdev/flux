@@ -9,7 +9,8 @@ import {
   Trash, 
   FileText,
   Loader2,
-  Download
+  Download,
+  Settings
 } from "lucide-react"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -22,6 +23,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { FormShareModal } from "@/components/forms/form-share-modal"
+import { useData } from "@/contexts/DataContext"
 
 interface FormSubmission {
   id: string
@@ -60,6 +62,7 @@ export default function FormDashboardPage() {
   const router = useRouter()
   const params = useParams()
   const formId = params.id as string
+  const { forceRefresh } = useData()
 
   const [form, setForm] = useState<FormData | null>(null)
   const [submissions, setSubmissions] = useState<FormSubmission[]>([])
@@ -110,6 +113,32 @@ export default function FormDashboardPage() {
   const handleEditForm = () => {
     router.push(`/dashboard/forms/${formId}`)
   }
+
+  const handleDeleteForm = async () => {
+    if (!form) return;
+    
+    try {
+      const response = await fetch(`/api/forms/${formId}/trash`, {
+        method: 'PATCH',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete form');
+      }
+      
+      // Refresh data context to update all places showing forms
+      await forceRefresh();
+      
+      // Navigate to workspace if available, otherwise go to dashboard
+      if (form.workspaceId) {
+        router.push(`/dashboard/workspace/${form.workspaceId}`);
+      } else {
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      console.error('Error deleting form:', error);
+    }
+  };
 
   const handlePublishChange = async (published: boolean) => {
     if (!form) return
@@ -252,7 +281,12 @@ export default function FormDashboardPage() {
                   Edit form
                 </DropdownMenuItem>
 
-                <DropdownMenuItem className="text-destructive">
+                <DropdownMenuItem onClick={() => router.push(`/dashboard/forms/${formId}/settings`)}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={handleDeleteForm} className="text-destructive">
                   <Trash className="mr-2 h-4 w-4" />
                   Delete form
                 </DropdownMenuItem>

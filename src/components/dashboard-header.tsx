@@ -249,7 +249,7 @@ export function DashboardHeader({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => { /* TODO: Add navigation to settings */ }}
+            onClick={() => router.push(formId ? `/dashboard/forms/${formId}/settings` : '/dashboard/settings')}
             aria-label="Settings"
           >
             <Settings className="h-4 w-4" />

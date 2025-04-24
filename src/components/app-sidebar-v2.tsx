@@ -43,12 +43,19 @@ interface NavSectionProps {
 }
 
 interface FavoriteProps {
-  id: string
+  id: string;
+  formId: string;
+  createdAt: Date;
   form: {
     id: string;
     title: string;
+    description?: string;
+    published?: boolean;
+    workspace?: {
+      id: string;
+      name: string;
+    }
   };
-  createdAt: Date;
 }
 
 // Type for favorites from DB which need to be transformed
@@ -61,6 +68,12 @@ interface FavoriteFromDB {
   form?: {
     id: string;
     title: string;
+    description?: string;
+    published?: boolean;
+    workspace?: {
+      id: string;
+      name: string;
+    }
   };
 }
 
@@ -198,28 +211,16 @@ export function AppSidebarV2() {
       
       try {
         // Fetch favorites
-        const fetchFavorites = fetch(`/api/favorites?userId=${userData.id}`)
-          .then(response => {
-            if (!response.ok) {
-              throw new Error('Failed to fetch favorites');
-            }
-            return response.json();
-          })
-          .then((data: FavoriteFromDB[]) => {
-            // Transform to match our component's expected format
-            const formattedFavorites: FavoriteProps[] = data.filter(fav => fav.form).map(fav => ({
-              id: fav.id,
-              form: {
-                id: fav.form!.id,
-                title: fav.form!.title
-              },
-              createdAt: fav.createdAt
-            }));
-            setFavorites(formattedFavorites);
-          });
+        const fetchFavorites = fetchFavoritesData();
         
         // Fetch workspaces
-        const fetchWorkspaces = fetch(`/api/workspace?userId=${userData.id}`)
+        const fetchWorkspaces = fetch(`/api/workspace`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        })
           .then(response => {
             if (!response.ok) {
               throw new Error('Failed to fetch workspaces');
@@ -250,6 +251,43 @@ export function AppSidebarV2() {
       fetchData();
     }
   }, [userData]);
+
+  // Helper function to fetch favorites data
+  const fetchFavoritesData = async () => {
+    if (!userData) return Promise.resolve();
+    
+    try {
+      const response = await fetch(`/api/favorites`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch favorites');
+      }
+      
+      const data: FavoriteFromDB[] = await response.json();
+      
+      // Transform to match our component's expected format
+      const formattedFavorites: FavoriteProps[] = data
+        .filter(fav => fav.form)
+        .map(fav => ({
+          id: fav.id,
+          formId: fav.formId,
+          createdAt: fav.createdAt,
+          form: fav.form!
+        }));
+      
+      setFavorites(formattedFavorites);
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+      return Promise.reject(error);
+    }
+  };
 
   const handleCreateForm = async (workspaceId: string) => {
     if (!workspaceId) return;
@@ -311,7 +349,17 @@ export function AppSidebarV2() {
     setLoading(prev => ({ ...prev, [workspaceId]: true }));
     
     try {
-      const response = await fetch(`/api/workspace/${workspaceId}/forms`);
+      // Add a timestamp parameter to avoid browser caching
+      const timestamp = Date.now();
+      const response = await fetch(`/api/workspace/${workspaceId}/forms?t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      
       if (response.ok) {
         const formsData = await response.json();
         setWorkspaceForms(prev => ({ ...prev, [workspaceId]: formsData }));
@@ -320,6 +368,34 @@ export function AppSidebarV2() {
       console.error(`Error fetching forms for workspace ${workspaceId}:`, error);
     } finally {
       setLoading(prev => ({ ...prev, [workspaceId]: false }));
+    }
+  };
+
+  const toggleFavorite = async (e: React.MouseEvent, formId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!userData) return;
+    
+    try {
+      const response = await fetch('/api/favorites/toggle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ formId }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to toggle favorite');
+      }
+      
+      const data = await response.json();
+      
+      // After toggling, always refresh favorites to get the latest data
+      await fetchFavoritesData();
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
     }
   };
 
@@ -357,7 +433,12 @@ export function AppSidebarV2() {
           <NavItem href="/dashboard" icon={Home} active={pathname === "/dashboard"}>
             Home
           </NavItem>
-          <NavItem href="/dashboard/search" icon={Search}>
+          <NavItem 
+            href="#" 
+            icon={Search} 
+            onClick={() => router.push('/dashboard/search')}
+            active={pathname === "/dashboard/search"}
+          >
             Search
           </NavItem>
           <NavItem href="/dashboard/ai" icon={Sparkles}>
@@ -366,47 +447,27 @@ export function AppSidebarV2() {
         </div>
         
         {/* Favorites */}
-        <NavSection title="Favorites">
-          {favorites.length === 0 ? (
-            <div className="px-3 py-2">
-              <div className="p-2 bg-muted/40 rounded-md text-xs">
-                <div className="flex items-start gap-2">
-                  <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium mb-1">No favorites yet</p>
-                    <p className="text-muted-foreground">Star forms to add them to your favorites.</p>
-                    <Button 
-                      variant="link" 
-                      size="sm" 
-                      className="p-0 h-auto flex items-center gap-1 text-primary" 
-                      onClick={() => {
-                        if (workspaces.length > 0) {
-                          handleCreateForm(workspaces[0].id);
-                        } else {
-                          handleCreateWorkspace();
-                        }
-                      }}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>Create a form</span>
-                    </Button>
-                  </div>
-                </div>
-              </div>
+        {favorites.length > 0 && (
+          <NavSection title="Favorites">
+            <div className="space-y-1">
+              {favorites.map((favorite) => (
+                <Link
+                  key={favorite.id}
+                  href={`/dashboard/forms/${favorite.form.id}`}
+                  className={cn(
+                    "flex items-center px-3 py-1.5 gap-2 text-sm rounded-md transition-colors duration-200",
+                    pathname === `/dashboard/forms/${favorite.form.id}` 
+                      ? "bg-primary text-primary-foreground" 
+                      : "text-foreground hover:bg-muted"
+                  )}
+                >
+                  <Star className="h-4 w-4 text-gray-400 fill-gray-400" />
+                  <span className="truncate">{favorite.form.title}</span>
+                </Link>
+              ))}
             </div>
-          ) : (
-            favorites.map((favorite) => (
-              <NavItem 
-                key={favorite.id} 
-                href={`/dashboard/forms/${favorite.form.id}`} 
-                icon={Star}
-                active={pathname === `/dashboard/forms/${favorite.form.id}`}
-              >
-                {favorite.form.title}
-              </NavItem>
-            ))
-          )}
-        </NavSection>
+          </NavSection>
+        )}
         
         {/* Workspaces */}
         <div className="my-2">
@@ -487,30 +548,43 @@ export function AppSidebarV2() {
                       </div>
                     </div>
                     {expandedWorkspaces[workspace.id] && (
-                      <div className="ml-6 mt-1 space-y-0.5">
+                      <div className="ml-4 mb-2 space-y-0.5">
                         {loading[workspace.id] ? (
                           <div className="py-2 px-3">
                             <div className="h-4 bg-muted/40 rounded animate-pulse w-2/3 mb-2" />
                             <div className="h-4 bg-muted/40 rounded animate-pulse w-1/2" />
                           </div>
-                        ) : workspaceForms[workspace.id]?.length ? (
-                          workspaceForms[workspace.id].map(form => (
-                            <Link
-                              key={form.id}
-                              href={`/dashboard/forms/${form.id}`}
-                              className={`block px-3 py-1 text-sm rounded-md ${
-                                pathname === `/dashboard/forms/${form.id}` 
-                                  ? 'bg-secondary font-medium' 
-                                  : 'hover:bg-secondary/50'
-                              }`}
-                            >
-                              {form.title}
-                            </Link>
-                          ))
-                        ) : (
+                        ) : !workspaceForms[workspace.id]?.length ? (
                           <div className="px-3 py-1 text-sm text-muted-foreground">
                             No forms
                           </div>
+                        ) : (
+                          workspaceForms[workspace.id].map((form) => (
+                            <div key={form.id} className="flex items-center">
+                              <Link 
+                                href={`/dashboard/forms/${form.id}`}
+                                className={cn(
+                                  "flex items-center px-1.5 py-1 gap-1.5 text-sm rounded-md flex-grow text-foreground hover:bg-muted",
+                                  pathname === `/dashboard/forms/${form.id}` && "bg-muted"
+                                )}
+                              >
+                                <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                                <span className="truncate">{form.title}</span>
+                              </Link>
+                              <button
+                                onClick={(e) => toggleFavorite(e, form.id)}
+                                className="h-5 w-5 rounded-sm opacity-80 hover:opacity-100 flex items-center justify-center"
+                                title={favorites.some(f => f.formId === form.id) ? "Remove from favorites" : "Add to favorites"}
+                              >
+                                <Star className={cn(
+                                  "h-4 w-4",
+                                  favorites.some(f => f.formId === form.id) 
+                                    ? "text-gray-400 fill-gray-400" 
+                                    : "text-gray-400"
+                                )} />
+                              </button>
+                            </div>
+                          ))
                         )}
                       </div>
                     )}
@@ -540,6 +614,7 @@ export function AppSidebarV2() {
             Trash
           </NavItem>
         </div>
+        
         <Link 
           href="/pricing" 
           className="flex items-center justify-center mt-2"
@@ -558,6 +633,7 @@ export function AppSidebarV2() {
       />
     </Button>
         </Link>
+       
       </div>
       
 

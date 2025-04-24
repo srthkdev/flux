@@ -28,6 +28,7 @@ interface DataContextType {
   isLoading: boolean
   error: string | null
   refetchData: () => Promise<void>
+  forceRefresh: () => Promise<void>
   searchForms: (query: string) => FormItem[]
   searchWorkspaces: (query: string) => WorkspaceItem[]
   getWorkspaceForms: (workspaceId: string) => FormItem[]
@@ -40,6 +41,7 @@ const DataContext = createContext<DataContextType>({
   isLoading: true,
   error: null,
   refetchData: async () => {},
+  forceRefresh: async () => {},
   searchForms: () => [],
   searchWorkspaces: () => [],
   getWorkspaceForms: () => []
@@ -65,12 +67,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    await fetchDataInternal()
+  }
+
+  // Internal function that always fetches fresh data
+  const fetchDataInternal = async () => {
+    if (!isUserLoaded || !user) return
+    
     setIsLoading(true)
     setError(null)
 
     try {
       // Fetch workspaces
-      const workspacesResponse = await fetch('/api/workspace', { cache: 'no-store' })
+      const workspacesResponse = await fetch('/api/workspace', { 
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      })
       if (!workspacesResponse.ok) {
         throw new Error('Failed to fetch workspaces')
       }
@@ -80,7 +95,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // Get form counts for each workspace concurrently
       const workspacesWithFormCounts = await Promise.all(
         workspacesData.map(async (workspace: any) => {
-          const formsResponse = await fetch(`/api/workspace/${workspace.id}/forms`, { cache: 'no-store' })
+          const formsResponse = await fetch(`/api/workspace/${workspace.id}/forms`, { 
+            cache: 'no-store',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache'
+            }
+          })
           if (!formsResponse.ok) {
             return {
               ...workspace,
@@ -99,20 +120,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setWorkspaces(workspacesWithFormCounts)
       
       // Fetch all forms
-      const formsResponse = await fetch('/api/forms', { cache: 'no-store' })
+      const formsResponse = await fetch('/api/forms', { 
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      })
       if (!formsResponse.ok) {
         throw new Error('Failed to fetch forms')
       }
       
       const formsData = await formsResponse.json()
       setForms(formsData)
-      setLastFetchTime(now)
+      setLastFetchTime(Date.now())
     } catch (error) {
       console.error('Error fetching data:', error)
       setError(error instanceof Error ? error.message : 'Unknown error fetching data')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Force refresh ignores the cache time
+  const forceRefresh = async () => {
+    await fetchDataInternal()
   }
 
   // Fetch data on initial load
@@ -154,6 +186,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     isLoading,
     error,
     refetchData: fetchData,
+    forceRefresh,
     searchForms,
     searchWorkspaces,
     getWorkspaceForms

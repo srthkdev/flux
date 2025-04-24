@@ -20,7 +20,10 @@ export async function PATCH(
     
     const form = await prismadb.form.update({
       where: { id },
-      data: { isInTrash: true }
+      data: { 
+        isInTrash: true,
+        isDeleted: true 
+      }
     })
     
     return NextResponse.json(form)

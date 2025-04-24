@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, MoreHorizontal, FolderIcon } from 'lucide-react';
+import { Plus, MoreHorizontal, FolderIcon, Trash2 } from 'lucide-react';
 import { useUser } from '@clerk/nextjs';
 
 import { Button } from '@/components/ui/button';
@@ -25,12 +25,14 @@ import { workspaceService } from '@/lib/services/workspace-service';
 import { WorkspaceModal } from '@/components/workspace-modal';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { useData } from '@/contexts/DataContext';
+import { toast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user } = useUser();
-  const { forms, workspaces, isLoading, refetchData } = useData();
+  const { forms, workspaces, isLoading, refetchData, forceRefresh } = useData();
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+  const [formActionInProgress, setFormActionInProgress] = useState<Record<string, boolean>>({});
 
   // Function to create a new form in the first workspace or open workspace modal if no workspaces
   const handleCreateForm = async () => {
@@ -57,7 +59,7 @@ export default function DashboardPage() {
         router.push(`/dashboard/forms/${newForm.id}`);
         
         // Refresh data after creating a form
-        refetchData();
+        await refetchData();
       } catch (error) {
         console.error('Error creating form:', error);
       }
@@ -70,6 +72,45 @@ export default function DashboardPage() {
   // Function to open workspace modal
   const handleCreateWorkspace = () => {
     setIsWorkspaceModalOpen(true);
+  };
+
+  const handleDeleteForm = async (e: React.MouseEvent, formId: string) => {
+    e.stopPropagation();
+    
+    // Prevent multiple clicks
+    if (formActionInProgress[formId]) return;
+    
+    setFormActionInProgress(prev => ({ ...prev, [formId]: true }));
+    
+    try {
+      // Use the trash API endpoint to move the form to trash
+      const response = await fetch(`/api/forms/${formId}/trash`, {
+        method: 'PATCH',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to move form to trash');
+      }
+      
+      // Refresh data to update UI
+      await forceRefresh();
+      
+      toast({
+        title: 'Form moved to trash',
+        description: 'The form has been moved to trash.',
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error moving form to trash:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to move form to trash',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    } finally {
+      setFormActionInProgress(prev => ({ ...prev, [formId]: false }));
+    }
   };
 
   return (
@@ -163,20 +204,35 @@ export default function DashboardPage() {
                 {forms.map((form) => (
                   <div
                     key={form.id}
-                    className="border border-gray-200 rounded-md hover:border-gray-300 transition-all cursor-pointer"
+                    className="border border-gray-200 rounded-md hover:border-gray-300 transition-all cursor-pointer group relative"
                     onClick={() => router.push(`/dashboard/forms/${form.id}`)}
                   >
                     <div className="p-4">
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-base font-medium">{form.title}</h3>
-                          {!form.published && (
-                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Draft</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-medium">{form.title}</h3>
+                            {!form.published && (
+                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Draft</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500 mt-1">
+                            Edited {new Date(form.updatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => handleDeleteForm(e, form.id)}
+                          disabled={formActionInProgress[form.id]}
+                        >
+                          {formActionInProgress[form.id] ? (
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+                          ) : (
+                            <Trash2 className="h-4 w-4 text-gray-500 hover:text-red-500" />
                           )}
-                        </div>
-                        <div className="text-sm text-gray-500 mt-1">
-                          Edited {new Date(form.updatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
-                        </div>
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -192,7 +248,7 @@ export default function DashboardPage() {
         isOpen={isWorkspaceModalOpen}
         onOpenChange={setIsWorkspaceModalOpen}
         onSuccess={() => {
-          refetchData();
+          forceRefresh();
         }}
       />
     </>
