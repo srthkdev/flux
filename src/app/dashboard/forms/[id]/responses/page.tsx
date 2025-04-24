@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Download, Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { DashboardHeader } from '@/components/dashboard-header'
 import {
   Table,
   TableBody,
@@ -18,6 +19,11 @@ interface FormData {
   id: string
   title: string
   fields: FormField[]
+  workspaceId?: string
+  workspace?: {
+    id: string
+    name: string
+  }
 }
 
 interface FormField {
@@ -142,73 +148,75 @@ export default function FormResponsesPage() {
   }
   
   return (
-    <div className="container mx-auto py-6 px-4 max-w-7xl">
-      <div className="flex items-center mb-8">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="mr-2" 
-          onClick={() => router.back()}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="text-2xl font-bold">{form.title} - Responses</h1>
-      </div>
+    <>
+      <DashboardHeader
+        workspaceId={form.workspaceId}
+        workspaceName={form.workspace?.name || "My Workspace"}
+        formId={form.id}
+        formName={form.title}
+        breadcrumbs={[
+          { label: form.workspace?.name || "My Workspace", href: `/dashboard/workspace/${form.workspaceId || ''}` },
+          { label: form.title, href: `/dashboard/forms/${form.id}` },
+          { label: "Responses", href: `/dashboard/forms/${form.id}/responses` }
+        ]}
+      />
       
-      <div className="flex justify-between items-center mb-6">
-        <p className="text-muted-foreground">
-          {responses.length} {responses.length === 1 ? 'response' : 'responses'} received
-        </p>
-        
-        {responses.length > 0 && (
-          <Button onClick={handleDownloadCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Download CSV
-          </Button>
-        )}
-      </div>
-      
-      {responses.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
-          <h3 className="text-lg font-medium mb-2">No responses yet</h3>
-          <p className="text-muted-foreground mb-6">Share your form to start collecting responses.</p>
-          <Button 
-            onClick={() => router.push(`/dashboard/forms/${formId}`)}
-            variant="outline"
-          >
-            Back to Form
-          </Button>
+      <div className="container mx-auto py-6 px-4 max-w-7xl">
+        <div className="flex justify-between items-center mb-6">
+          <p className="text-muted-foreground">
+            {responses.length} {responses.length === 1 ? 'response' : 'responses'} received
+          </p>
+          
+          {responses.length > 0 && (
+            <Button onClick={handleDownloadCSV}>
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV
+            </Button>
+          )}
         </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-48">Submission Date</TableHead>
-                  {form.fields.map((field) => (
-                    <TableHead key={field.id}>{field.label}</TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {responses.map((response) => (
-                  <TableRow key={response.id}>
-                    <TableCell className="font-medium">
-                      {new Date(response.createdAt).toLocaleString()}
-                    </TableCell>
+        
+        {responses.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
+            <h3 className="text-lg font-medium mb-2">No responses yet</h3>
+            <p className="text-muted-foreground mb-6">Share your form to start collecting responses.</p>
+            <Button 
+              onClick={() => router.push(`/dashboard/forms/${formId}`)}
+              variant="outline"
+            >
+              Back to Form
+            </Button>
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-48">Submission Date</TableHead>
                     {form.fields.map((field) => (
-                      <TableCell key={field.id}>
-                        {formatResponseValue(field, response.data[field.id])}
-                      </TableCell>
+                      <TableHead key={field.id}>{field.label}</TableHead>
                     ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {responses.map((response) => (
+                    <TableRow key={response.id}>
+                      <TableCell className="font-medium">
+                        {new Date(response.createdAt).toLocaleString()}
+                      </TableCell>
+                      {form.fields.map((field) => (
+                        <TableCell key={field.id}>
+                          {formatResponseValue(field, response.data[field.id])}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   )
 } 

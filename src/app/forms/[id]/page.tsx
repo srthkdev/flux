@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Check, Loader2 } from 'lucide-react'
+import { Check, Loader2, Save } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
+import { InteractiveHoverButton } from '@/components/magicui/interactive-hover-button'
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ interface FormData {
   title: string
   description?: string
   published: boolean
+  banner?: string
   fields: FormField[]
 }
 
@@ -48,6 +50,7 @@ export default function PublicFormPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [bannerImage, setBannerImage] = useState<string | null>(null)
   
   useEffect(() => {
     const fetchForm = async () => {
@@ -72,12 +75,19 @@ export default function PublicFormPage() {
             initialValues[field.id] = false
           } else if (field.type === 'multiple_choice' || field.type === 'dropdown') {
             initialValues[field.id] = ''
+          } else if (field.type === 'multi_select') {
+            initialValues[field.id] = []
           } else {
             initialValues[field.id] = ''
           }
         })
         
         setFormValues(initialValues)
+        
+        // Set banner if available
+        if (formData.banner) {
+          setBannerImage(formData.banner)
+        }
       } catch (error) {
         console.error('Error fetching form:', error)
       } finally {
@@ -110,7 +120,7 @@ export default function PublicFormPage() {
     if (!form) return false
     
     form.fields.forEach(field => {
-      if (field.required) {
+      if (field.required && field.type !== 'h1' && field.type !== 'h2' && field.type !== 'h3') {
         const value = formValues[field.id]
         
         if (field.type === 'checkbox' && !value) {
@@ -119,7 +129,10 @@ export default function PublicFormPage() {
         } else if (field.type === 'file' && (!value || !value.file)) {
           newErrors[field.id] = 'Please upload a file'
           isValid = false
-        } else if (field.type !== 'checkbox' && field.type !== 'file' && (!value || value.trim() === '')) {
+        } else if (field.type === 'multi_select' && (!value || value.length === 0)) {
+          newErrors[field.id] = 'Please select at least one option'
+          isValid = false
+        } else if (field.type !== 'checkbox' && field.type !== 'file' && field.type !== 'multi_select' && (!value || (typeof value === 'string' && value.trim() === ''))) {
           newErrors[field.id] = 'This field is required'
           isValid = false
         }
@@ -171,6 +184,16 @@ export default function PublicFormPage() {
           isValid = false
         }
       }
+      
+      // URL validation
+      if (field.type === 'link' && formValues[field.id]) {
+        try {
+          new URL(formValues[field.id])
+        } catch (e) {
+          newErrors[field.id] = 'Please enter a valid URL'
+          isValid = false
+        }
+      }
     })
     
     setErrors(newErrors)
@@ -187,9 +210,6 @@ export default function PublicFormPage() {
     setIsSubmitting(true)
     
     try {
-      // Process the form data
-      const formData = new FormData()
-      
       // Prepare data for submission by handling file uploads
       const submissionData: Record<string, any> = {}
       
@@ -212,6 +232,8 @@ export default function PublicFormPage() {
         }
       }
       
+      console.log(`Submitting form data for formId: ${formId}`, submissionData)
+      
       const response = await fetch(`/api/forms/${formId}/responses`, {
         method: 'POST',
         headers: {
@@ -221,8 +243,13 @@ export default function PublicFormPage() {
       })
       
       if (!response.ok) {
-        throw new Error('Failed to submit form')
+        const errorText = await response.text()
+        console.error(`Failed to submit form: ${response.status} ${response.statusText}`, errorText)
+        throw new Error(`Failed to submit form: ${response.status} ${response.statusText}`)
       }
+      
+      const responseData = await response.json()
+      console.log('Form submission successful:', responseData)
       
       setIsSubmitted(true)
     } catch (error) {
@@ -276,8 +303,8 @@ export default function PublicFormPage() {
   
   if (isSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+        <div className="max-w-md w-full text-center bg-white p-8 rounded-lg shadow-sm">
           <div className="inline-flex items-center justify-center rounded-full bg-green-100 p-6 mb-6">
             <Check className="h-10 w-10 text-green-600" />
           </div>
@@ -297,171 +324,259 @@ export default function PublicFormPage() {
   }
   
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4">
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-lg shadow-sm border p-8 mb-6">
-          <h1 className="text-3xl font-bold mb-2">{form.title}</h1>
-          {form.description && (
-            <p className="text-muted-foreground mb-4">{form.description}</p>
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
+          {/* Banner area */}
+          {bannerImage && (
+            <div className="w-full">
+              <img src={bannerImage} alt="Form banner" className="w-full h-48 object-cover" />
+            </div>
           )}
+          
+          {/* Form title area */}
+          <div className="p-8">
+            <h1 className="text-3xl font-bold mb-2">{form.title}</h1>
+            {form.description && (
+              <p className="text-gray-500 whitespace-pre-wrap">{form.description}</p>
+            )}
+          </div>
         </div>
         
+        {/* Form fields */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {form.fields.map((field) => (
-            <div key={field.id} className="bg-white rounded-lg shadow-sm border p-6">
-              <div className="mb-4">
-                <Label 
-                  htmlFor={field.id} 
-                  className="text-base font-medium"
-                >
-                  {field.label} 
-                  {field.required && <span className="text-red-500 ml-1">*</span>}
-                </Label>
-              </div>
-              
-              {field.type === 'text' && (
-                <Input
-                  id={field.id}
-                  value={formValues[field.id] || ''}
-                  onChange={(e) => handleInputChange(field.id, e.target.value)}
-                  placeholder={field.placeholder}
-                  className={errors[field.id] ? 'border-red-500' : ''}
-                />
+            <div 
+              key={field.id} 
+              className="bg-white rounded-lg shadow-sm p-6"
+            >
+              {/* Heading fields */}
+              {field.type === 'h1' && (
+                <h1 className="text-2xl font-bold">{field.label}</h1>
               )}
               
-              {field.type === 'long_answer' && (
-                <Textarea
-                  id={field.id}
-                  value={formValues[field.id] || ''}
-                  onChange={(e) => handleInputChange(field.id, e.target.value)}
-                  placeholder={field.placeholder}
-                  className={errors[field.id] ? 'border-red-500' : ''}
-                />
+              {field.type === 'h2' && (
+                <h2 className="text-xl font-bold">{field.label}</h2>
               )}
               
-              {field.type === 'number' && (
-                <Input
-                  id={field.id}
-                  type="number"
-                  value={formValues[field.id] || ''}
-                  onChange={(e) => handleInputChange(field.id, e.target.value)}
-                  placeholder={field.placeholder}
-                  className={errors[field.id] ? 'border-red-500' : ''}
-                />
+              {field.type === 'h3' && (
+                <h3 className="text-lg font-bold">{field.label}</h3>
               )}
               
-              {field.type === 'email' && (
-                <Input
-                  id={field.id}
-                  type="email"
-                  value={formValues[field.id] || ''}
-                  onChange={(e) => handleInputChange(field.id, e.target.value)}
-                  placeholder={field.placeholder || 'email@example.com'}
-                  className={errors[field.id] ? 'border-red-500' : ''}
-                />
-              )}
-              
-              {field.type === 'phone' && (
-                <Input
-                  id={field.id}
-                  type="tel"
-                  value={formValues[field.id] || ''}
-                  onChange={(e) => handleInputChange(field.id, e.target.value)}
-                  placeholder={field.placeholder || '+1 (555) 000-0000'}
-                  className={errors[field.id] ? 'border-red-500' : ''}
-                />
-              )}
-              
-              {field.type === 'checkbox' && (
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={field.id}
-                    checked={formValues[field.id] || false}
-                    onCheckedChange={(checked: boolean) => 
-                      handleInputChange(field.id, Boolean(checked))
-                    }
-                    className={errors[field.id] ? 'border-red-500' : ''}
-                  />
-                  <Label htmlFor={field.id} className="text-sm">
-                    {field.placeholder || 'Yes'}
+              {/* Regular input fields with labels */}
+              {field.type !== 'h1' && field.type !== 'h2' && field.type !== 'h3' && (
+                <div className="space-y-3">
+                  <Label 
+                    htmlFor={field.id} 
+                    className="text-base font-medium block"
+                  >
+                    {field.label} 
+                    {field.required && <span className="text-red-500 ml-1">*</span>}
                   </Label>
-                </div>
-              )}
-              
-              {field.type === 'multiple_choice' && field.options && (
-                <RadioGroup
-                  value={formValues[field.id] || ''}
-                  onValueChange={(value: string) => handleInputChange(field.id, value)}
-                  className={errors[field.id] ? 'text-red-500' : ''}
-                >
-                  <div className="space-y-2">
-                    {field.options.map((option, i) => (
-                      <div key={i} className="flex items-center space-x-2">
-                        <RadioGroupItem value={option} id={`${field.id}-${i}`} />
-                        <Label htmlFor={`${field.id}-${i}`}>{option}</Label>
+                  
+                  {field.type === 'text' && (
+                    <Input
+                      id={field.id}
+                      value={formValues[field.id] || ''}
+                      onChange={(e) => handleInputChange(field.id, e.target.value)}
+                      placeholder={field.placeholder || ""}
+                      className={errors[field.id] ? 'border-red-500' : ''}
+                    />
+                  )}
+                  
+                  {field.type === 'long_answer' && (
+                    <Textarea
+                      id={field.id}
+                      value={formValues[field.id] || ''}
+                      onChange={(e) => handleInputChange(field.id, e.target.value)}
+                      placeholder={field.placeholder || ""}
+                      className={`min-h-[100px] ${errors[field.id] ? 'border-red-500' : ''}`}
+                    />
+                  )}
+                  
+                  {field.type === 'number' && (
+                    <Input
+                      id={field.id}
+                      type="number"
+                      value={formValues[field.id] || ''}
+                      onChange={(e) => handleInputChange(field.id, e.target.value)}
+                      placeholder={field.placeholder || ""}
+                      className={errors[field.id] ? 'border-red-500' : ''}
+                    />
+                  )}
+                  
+                  {field.type === 'email' && (
+                    <Input
+                      id={field.id}
+                      type="email"
+                      value={formValues[field.id] || ''}
+                      onChange={(e) => handleInputChange(field.id, e.target.value)}
+                      placeholder={field.placeholder || "name@example.com"}
+                      className={errors[field.id] ? 'border-red-500' : ''}
+                    />
+                  )}
+                  
+                  {field.type === 'phone' && (
+                    <Input
+                      id={field.id}
+                      type="tel"
+                      value={formValues[field.id] || ''}
+                      onChange={(e) => handleInputChange(field.id, e.target.value)}
+                      placeholder={field.placeholder || "+1 (555) 000-0000"}
+                      className={errors[field.id] ? 'border-red-500' : ''}
+                    />
+                  )}
+                  
+                  {field.type === 'date' && (
+                    <Input
+                      id={field.id}
+                      type="date"
+                      value={formValues[field.id] || ''}
+                      onChange={(e) => handleInputChange(field.id, e.target.value)}
+                      className={errors[field.id] ? 'border-red-500' : ''}
+                    />
+                  )}
+                  
+                  {field.type === 'time' && (
+                    <Input
+                      id={field.id}
+                      type="time"
+                      value={formValues[field.id] || ''}
+                      onChange={(e) => handleInputChange(field.id, e.target.value)}
+                      className={errors[field.id] ? 'border-red-500' : ''}
+                    />
+                  )}
+                  
+                  {field.type === 'link' && (
+                    <Input
+                      id={field.id}
+                      type="url"
+                      value={formValues[field.id] || ''}
+                      onChange={(e) => handleInputChange(field.id, e.target.value)}
+                      placeholder={field.placeholder || "https://example.com"}
+                      className={errors[field.id] ? 'border-red-500' : ''}
+                    />
+                  )}
+                  
+                  {field.type === 'checkbox' && field.options && field.options.length > 0 && (
+                    <div className="space-y-2">
+                      {field.options.map((option, i) => (
+                        <div key={i} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`${field.id}-${i}`}
+                            checked={formValues[field.id]?.[option] || false}
+                            onCheckedChange={(checked) => {
+                              handleInputChange(field.id, {
+                                ...formValues[field.id],
+                                [option]: checked
+                              })
+                            }}
+                            className={errors[field.id] ? 'border-red-500' : ''}
+                          />
+                          <Label htmlFor={`${field.id}-${i}`} className="text-sm font-normal">
+                            {option}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {field.type === 'multiple_choice' && field.options && field.options.length > 0 && (
+                    <RadioGroup
+                      value={formValues[field.id] || ''}
+                      onValueChange={(value) => handleInputChange(field.id, value)}
+                      className={errors[field.id] ? 'text-red-500' : ''}
+                    >
+                      <div className="space-y-2">
+                        {field.options.map((option, i) => (
+                          <div key={i} className="flex items-center space-x-2">
+                            <RadioGroupItem value={option} id={`${field.id}-${i}`} />
+                            <Label htmlFor={`${field.id}-${i}`} className="text-sm font-normal">{option}</Label>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </RadioGroup>
-              )}
-              
-              {field.type === 'dropdown' && field.options && (
-                <Select
-                  value={formValues[field.id] || ''}
-                  onValueChange={(value: string) => handleInputChange(field.id, value)}
-                >
-                  <SelectTrigger className={errors[field.id] ? 'border-red-500' : ''}>
-                    <SelectValue placeholder="Select an option" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {field.options.map((option, i) => (
-                      <SelectItem key={i} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              
-              {field.type === 'file' && (
-                <div className="space-y-2">
-                  <input
-                    id={field.id}
-                    type="file"
-                    className={`w-full p-2 border rounded-md ${errors[field.id] ? 'border-red-500' : 'border-gray-300'}`}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) {
-                        // Store the file object for submission
-                        handleInputChange(field.id, { file })
-                        
-                        // Show file name
-                        const fileInput = e.target
-                        if (fileInput && fileInput.parentElement) {
-                          const fileNameElement = document.createElement('div')
-                          fileNameElement.className = 'text-sm mt-1'
-                          fileNameElement.textContent = file.name
-                          
-                          // Clear previous file name
-                          const prevFileNames = fileInput.parentElement.querySelectorAll('.text-sm')
-                          prevFileNames.forEach(el => el.remove())
-                          
-                          fileInput.parentElement.appendChild(fileNameElement)
-                        }
-                      }
-                    }}
-                    accept={field.fileTypes?.join(',') || '*/*'}
-                  />
-                  <p className="text-xs text-gray-500">
-                    {field.fileSize ? `Maximum file size: ${field.fileSize}MB` : 'Maximum file size: 5MB'}
-                  </p>
+                    </RadioGroup>
+                  )}
+                  
+                  {field.type === 'dropdown' && field.options && field.options.length > 0 && (
+                    <Select
+                      value={formValues[field.id] || ''}
+                      onValueChange={(value) => handleInputChange(field.id, value)}
+                    >
+                      <SelectTrigger className={errors[field.id] ? 'border-red-500' : ''}>
+                        <SelectValue placeholder="Select an option" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {field.options.map((option, i) => (
+                          <SelectItem key={i} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  
+                  {field.type === 'multi_select' && field.options && field.options.length > 0 && (
+                    <div className="space-y-2">
+                      {field.options.map((option, i) => (
+                        <div key={i} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`${field.id}-${i}`}
+                            checked={formValues[field.id]?.includes(option) || false}
+                            onCheckedChange={(checked) => {
+                              const currentValues = [...(formValues[field.id] || [])]
+                              if (checked) {
+                                if (!currentValues.includes(option)) {
+                                  handleInputChange(field.id, [...currentValues, option])
+                                }
+                              } else {
+                                handleInputChange(field.id, currentValues.filter(v => v !== option))
+                              }
+                            }}
+                            className={errors[field.id] ? 'border-red-500' : ''}
+                          />
+                          <Label htmlFor={`${field.id}-${i}`} className="text-sm font-normal">
+                            {option}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {field.type === 'file' && (
+                    <div className="space-y-2">
+                      <div className="border border-dashed border-gray-300 rounded-md p-6 text-center">
+                        <input
+                          id={field.id}
+                          type="file"
+                          className={`w-full ${errors[field.id] ? 'text-red-500' : ''}`}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              handleInputChange(field.id, { file })
+                            }
+                          }}
+                          accept={field.fileTypes?.join(',') || '*/*'}
+                        />
+                        <p className="text-xs text-gray-500 mt-2">
+                          Max size: {field.fileSize || 5}MB
+                        </p>
+                      </div>
+                      
+                      {formValues[field.id]?.file && (
+                        <div className="text-sm mt-1">
+                          Selected file: {formValues[field.id].file.name}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {errors[field.id] && (
+                    <p className="text-sm text-red-500">
+                      {errors[field.id]}
+                    </p>
+                  )}
                 </div>
-              )}
-              
-              {errors[field.id] && (
-                <p className="mt-1 text-sm text-red-500">
-                  {errors[field.id]}
-                </p>
               )}
             </div>
           ))}
@@ -472,24 +587,27 @@ export default function PublicFormPage() {
             </div>
           )}
           
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <Button 
-              type="submit" 
-              className="w-full"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                'Submit'
-              )}
-            </Button>
-          </div>
+<div className="mt-8 flex items-start justify-start pb-10">
+  <InteractiveHoverButton
+    type="submit"
+    disabled={isSubmitting}
+    className="w-start flex items-start justify-start border-black bg-black px-6 py-2 text-sm text-white hover:bg-gray-800 disabled:opacity-70 disabled:cursor-not-allowed"
+  >
+    {isSubmitting ? (
+      <span className="flex items-center">
+        <Loader2 className="h-4 w-5 animate-spin" />
+        Submitting...
+      </span>
+    ) : (
+      <span className="flex items-center">
+        <Save className="h-4 w-5" />
+        Submit
+      </span>
+    )}
+  </InteractiveHoverButton>
+</div>
         </form>
       </div>
     </div>
   )
-} 
+}

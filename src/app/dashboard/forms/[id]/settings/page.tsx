@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { DashboardHeader } from '@/components/dashboard-header'
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,10 @@ interface FormData {
   description?: string
   published: boolean
   workspaceId?: string
+  workspace?: {
+    id: string
+    name: string
+  }
   updatedAt: Date
 }
 
@@ -131,118 +136,120 @@ export default function FormSettingsPage() {
   }
   
   return (
-    <div className="container mx-auto py-6 px-4 max-w-5xl">
-      <div className="flex items-center mb-8">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="mr-2" 
-          onClick={() => router.back()}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="text-2xl font-bold">{form.title} - Settings</h1>
-      </div>
+    <>
+      <DashboardHeader
+        workspaceId={form.workspaceId}
+        workspaceName={form.workspace?.name || "My Workspace"}
+        formId={form.id}
+        formName={form.title}
+        breadcrumbs={[
+          { label: form.workspace?.name || "My Workspace", href: `/dashboard/workspace/${form.workspaceId || ''}` },
+          { label: form.title, href: `/dashboard/forms/${form.id}` },
+          { label: "Settings", href: `/dashboard/forms/${form.id}/settings` }
+        ]}
+      />
       
-      <div className="grid gap-6">
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-xl font-semibold mb-4">Form Information</h2>
+      <div className="container mx-auto py-6 px-4 max-w-5xl">
+        <div className="grid gap-6">
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h2 className="text-xl font-semibold mb-4">Form Information</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="title">Form Title</Label>
+                <Input
+                  id="title"
+                  value={form.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="description">Form Description</Label>
+                <Textarea
+                  id="description"
+                  value={form.description || ''}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  className="mt-1"
+                  placeholder="Provide a description for your form"
+                />
+              </div>
+            </div>
+          </div>
           
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="title">Form Title</Label>
-              <Input
-                id="title"
-                value={form.title}
-                onChange={(e) => handleInputChange('title', e.target.value)}
-                className="mt-1"
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h2 className="text-xl font-semibold mb-4">Form Status</h2>
+            
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium">Published</h3>
+                <p className="text-sm text-muted-foreground">
+                  When published, people can submit responses to your form.
+                </p>
+              </div>
+              <Switch
+                checked={form.published}
+                onCheckedChange={(checked: boolean) => handleInputChange('published', checked)}
               />
             </div>
             
-            <div>
-              <Label htmlFor="description">Form Description</Label>
-              <Textarea
-                id="description"
-                value={form.description || ''}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                className="mt-1"
-                placeholder="Provide a description for your form"
-              />
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-xl font-semibold mb-4">Form Status</h2>
-          
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-medium">Published</h3>
-              <p className="text-sm text-muted-foreground">
-                When published, people can submit responses to your form.
-              </p>
-            </div>
-            <Switch
-              checked={form.published}
-              onCheckedChange={(checked: boolean) => handleInputChange('published', checked)}
-            />
+            {form.published && (
+              <div className="mt-4 p-4 bg-blue-50 text-blue-800 rounded-md text-sm">
+                Your form is published. Anyone with the link can submit responses.
+              </div>
+            )}
           </div>
           
-          {form.published && (
-            <div className="mt-4 p-4 bg-blue-50 text-blue-800 rounded-md text-sm">
-              Your form is published. Anyone with the link can submit responses.
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h2 className="text-xl font-semibold mb-4 text-red-600">Danger Zone</h2>
+            <Separator className="mb-4" />
+            
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium">Delete Form</h3>
+                <p className="text-sm text-muted-foreground">
+                  Once deleted, this form and all its responses will be permanently removed.
+                </p>
+              </div>
+              <Button 
+                variant="destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Form
+              </Button>
             </div>
-          )}
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-xl font-semibold mb-4 text-red-600">Danger Zone</h2>
-          <Separator className="mb-4" />
+          </div>
           
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-medium">Delete Form</h3>
-              <p className="text-sm text-muted-foreground">
-                Once deleted, this form and all its responses will be permanently removed.
-              </p>
-            </div>
-            <Button 
-              variant="destructive"
-              onClick={() => setShowDeleteDialog(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Form
+          <div className="flex justify-end mt-2">
+            <Button onClick={saveSettings} disabled={isSaving}>
+              <Save className="h-4 w-4 mr-2" />
+              {isSaving ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </div>
         
-        <div className="flex justify-end mt-2">
-          <Button onClick={saveSettings} disabled={isSaving}>
-            <Save className="h-4 w-4 mr-2" />
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </div>
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Form</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this form? This action cannot be undone 
+                and all responses will be permanently removed.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={deleteForm}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-      
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Form</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this form? This action cannot be undone 
-              and all responses will be permanently removed.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={deleteForm}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+    </>
   )
 } 

@@ -15,13 +15,18 @@ interface DashboardHeaderProps {
   workspaceName?: string;
   formId?: string;
   formName?: string;
+  breadcrumbs?: Array<{
+    label: string;
+    href: string;
+  }>;
 }
 
 export function DashboardHeader({
   workspaceId,
   workspaceName,
   formId,
-  formName
+  formName,
+  breadcrumbs
 }: DashboardHeaderProps) {
   const router = useRouter();
   const pathname = usePathname(); // Get current path
@@ -82,36 +87,55 @@ export function DashboardHeader({
       <div className="container flex h-14 max-w-screen-2xl items-center">
         <div className="mr-4 flex items-center">
           {/* Logo and App Name */}
-          <Link href="/dashboard" className="mr-3 flex items-center space-x-2">
+          <Link href="/dashboard" className="mr-1 flex items-center space-x-2">
             <Star26 size={24} color="#44433e" stroke="white" strokeWidth={2.5} />
-            {/* Use the CSS variable for Georgia font */}
-            <span className="font-medium" style={{ fontFamily: 'var(--font-georgia)' }}>
-              Flux
-            </span>
+            <span className="font-medium font-bold">Flux</span>
           </Link>
-
-          {/* Dynamic Breadcrumbs */}
+          
+          {/* Custom Breadcrumbs or Dynamic Breadcrumbs */}
           <nav className="flex items-center space-x-1 text-sm text-muted-foreground">
-            {/* Show Workspace Name if applicable */} 
-            { (showWorkspace || showForm) && workspaceId && workspaceName && (
-                <>
-                    <ChevronRight className="h-4 w-4" />
-                    <Link 
-                        href={`/dashboard/workspace/${workspaceId}`}
-                        className="font-medium text-foreground hover:text-foreground/80"
-                    >
-                        {workspaceName}
-                    </Link>
-                </>
-            )}
+          <ChevronRight className="h-4 w-4 text-muted-foreground mx-1" />
 
-            {/* Show Form Name if applicable */}
-            { showForm && formName && (
-                <>
+            {isBaseDashboard ? (
+              <span className="font-medium text-foreground">Home</span>
+            ) : breadcrumbs ? (
+              breadcrumbs.map((crumb, index) => (
+                <React.Fragment key={index}>
+                  {index > 0 && <ChevronRight className="h-4 w-4" />}
+                  <Link 
+                    href={crumb.href}
+                    className="font-medium text-foreground hover:text-foreground/80"
+                  >
+                    {crumb.label}
+                  </Link>
+                </React.Fragment>
+              ))
+            ) : (
+              // Use default breadcrumb logic
+              <>
+                
+                {/* Show Workspace Name if applicable */} 
+                {(showWorkspace || showForm) && workspaceId && workspaceName && (
+                  <>
+                    
+                    <Link 
+                      href={`/dashboard/workspace/${workspaceId}`}
+                      className="font-medium text-foreground hover:text-foreground/80"
+                    >
+                      {workspaceName}
+                    </Link>
+                  </>
+                )}
+
+                {/* Show Form Name if applicable */}
+                {showForm && formName && (
+                  <>
                     <ChevronRight className="h-4 w-4" />
                     {/* Form name is usually not a link itself */}
                     <span className="font-medium text-foreground">{formName}</span> 
-                </>
+                  </>
+                )}
+              </>
             )}
           </nav>
         </div>

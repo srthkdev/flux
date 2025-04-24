@@ -6,8 +6,24 @@ import { PrismaClient } from '@prisma/client'
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient }
 
-const prisma: PrismaClient =
-  globalForPrisma.prisma || new PrismaClient()
+// Create a singleton Prisma Client
+export const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+    // Add connection management options to prevent random disconnects
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+  })
+
+// Handle connection errors
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection at:", reason)
+  // Prevent process crash on connection errors
+})
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 

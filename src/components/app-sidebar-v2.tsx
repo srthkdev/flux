@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { workspaceService } from "@/lib/services/workspace-service"
 import { WorkspaceModal } from "@/components/workspace-modal"
 import { RainbowButton } from "./magicui/rainbow-button"
+import { BorderBeam } from "./magicui/border-beam"
 
 interface NavItemProps {
   href: string
@@ -543,12 +544,19 @@ export function AppSidebarV2() {
           href="/pricing" 
           className="flex items-center justify-center mt-2"
         >
-          <RainbowButton 
-            className="w-full bg-black text-white font-medium py-2 px-4 rounded-full"
-            style={{ height: 'auto', borderRadius: '999px' }}
-          >
-            Upgrade to Pro
-          </RainbowButton>
+        <Button className="relative overflow-hidden w-full bg-[#0f0f0f] text-white font-medium py-2 px-4 rounded-full" size="lg" variant="outline">
+          upgrade to pro
+        <BorderBeam
+          size={80}
+          initialOffset={40}
+          className="from-transparent via-yellow-500 to-transparent"
+          transition={{
+            type: "spring",
+            stiffness: 80,
+            damping: 30,
+        }}
+      />
+    </Button>
         </Link>
       </div>
       
