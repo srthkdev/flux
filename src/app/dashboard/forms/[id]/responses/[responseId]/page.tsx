@@ -40,8 +40,8 @@ export default function SingleResponsePage() {
   const params = useParams()
   const router = useRouter()
   const formId = params.id as string
-  // Access direct responseId from the dynamic segment
-  const responseId = Array.isArray(params.id) ? params.id[1] : params.id
+  // Access responseId from the dynamic segment
+  const responseId = params.responseId as string
   
   const [form, setForm] = useState<FormData | null>(null)
   const [response, setResponse] = useState<FormResponse | null>(null)
