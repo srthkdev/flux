@@ -26,6 +26,7 @@ import { workspaceService } from "@/lib/services/workspace-service"
 import { WorkspaceModal } from "@/components/workspace-modal"
 import { RainbowButton } from "./magicui/rainbow-button"
 import { BorderBeam } from "./magicui/border-beam"
+import { FormCreateModal } from "@/components/forms/form-create-modal"
 
 interface NavItemProps {
   href: string
@@ -177,6 +178,8 @@ export function AppSidebarV2() {
   const [expandedWorkspaces, setExpandedWorkspaces] = React.useState<Record<string, boolean>>({})
   const [loading, setLoading] = React.useState<Record<string, boolean>>({})
   const [workspaceForms, setWorkspaceForms] = React.useState<Record<string, FormFromDB[]>>({})
+  const [isFormCreateModalOpen, setIsFormCreateModalOpen] = React.useState(false)
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = React.useState<string | null>(null)
   
   // Get the current user data from API
   React.useEffect(() => {
@@ -292,29 +295,14 @@ export function AppSidebarV2() {
   const handleCreateForm = async (workspaceId: string) => {
     if (!workspaceId) return;
     
-    try {
-      const formResponse = await fetch(`/api/workspace/${workspaceId}/forms`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: 'Untitled',
-          description: '',
-        }),
-      });
-      
-      if (!formResponse.ok) {
-        throw new Error('Failed to create form');
-      }
-      
-      const newForm = await formResponse.json();
-      router.push(`/dashboard/forms/${newForm.id}`);
-      
-      // Refresh the forms for this workspace
-      fetchWorkspaceForms(workspaceId);
-    } catch (error) {
-      console.error('Error creating form:', error);
+    setSelectedWorkspaceId(workspaceId);
+    setIsFormCreateModalOpen(true);
+  };
+
+  const handleFormCreateSuccess = (formId: string) => {
+    router.push(`/dashboard/forms/${formId}`);
+    if (selectedWorkspaceId) {
+      fetchWorkspaceForms(selectedWorkspaceId);
     }
   };
 
@@ -396,6 +384,30 @@ export function AppSidebarV2() {
       await fetchFavoritesData();
     } catch (error) {
       console.error('Error toggling favorite:', error);
+    }
+  };
+
+  // Add a function to fetch workspaces
+  const fetchWorkspaces = async () => {
+    if (!userData) return;
+    
+    try {
+      const response = await fetch(`/api/workspace`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch workspaces');
+      }
+      
+      const workspacesData = await response.json();
+      setWorkspaces(workspacesData);
+    } catch (error) {
+      console.error('Error fetching workspaces:', error);
     }
   };
 
@@ -637,39 +649,27 @@ export function AppSidebarV2() {
       </div>
       
 
+      {/* Form Create Modal */}
+      <FormCreateModal
+        isOpen={isFormCreateModalOpen}
+        onOpenChange={setIsFormCreateModalOpen}
+        workspaceId={selectedWorkspaceId || undefined}
+        onSuccess={handleFormCreateSuccess}
+      />
+      
       {/* Workspace Modal */}
       <WorkspaceModal
+        workspace={workspaceToEdit as { id: string; name: string; } | undefined}
         isOpen={isWorkspaceModalOpen}
         onOpenChange={(open) => {
           setIsWorkspaceModalOpen(open);
-          if (!open) {
-            setWorkspaceToEdit(null);
-          }
+          if (!open) setWorkspaceToEdit(null);
         }}
-        workspaceToEdit={workspaceToEdit || undefined}
         onSuccess={() => {
-          // Refresh workspaces using API
-          if (userData) {
-            fetch(`/api/workspace?userId=${userData.id}`)
-              .then(response => {
-                if (!response.ok) {
-                  throw new Error('Failed to fetch workspaces');
-                }
-                return response.json();
-              })
-              .then(workspacesData => {
-                setWorkspaces(workspacesData.map((w: WorkspaceFromDB) => ({
-                  id: w.id,
-                  name: w.name,
-                  emoji: w.emoji || undefined,
-                  forms: [],
-                })));
-              })
-              .catch(error => {
-                console.error('Error refreshing workspaces:', error);
-                setFetchError(error instanceof Error ? error.message : 'Unknown error');
-              });
+          if (workspaceToEdit) {
+            setExpandedWorkspaces(prev => ({ ...prev, [workspaceToEdit.id]: true }));
           }
+          fetchWorkspaces();
         }}
       />
     </aside>

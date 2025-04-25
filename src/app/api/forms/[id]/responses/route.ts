@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prismadb from '@/lib/db'
+import { formResponseSchema } from '@/schemas/form'
 
 // This endpoint is dynamic and will be server-rendered
 export const dynamic = 'force-dynamic';
@@ -63,6 +64,17 @@ export async function POST(
     
     // Get the form data
     const data = await request.json()
+    
+    // Validate response data with Zod
+    try {
+      formResponseSchema.parse(data);
+    } catch (validationError) {
+      console.error('Form response validation error:', validationError);
+      return NextResponse.json({ 
+        error: 'Invalid form response data', 
+        details: validationError 
+      }, { status: 400 });
+    }
     
     // Create the response
     const response = await prismadb.formResponse.create({

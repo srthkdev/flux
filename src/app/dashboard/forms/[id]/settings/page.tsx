@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
+import { prepareFieldsForAPI } from '@/lib/form-helpers'
 
 interface FormData {
   id: string
@@ -30,6 +31,7 @@ interface FormData {
     id: string
     name: string
   }
+  fields?: any[]
   updatedAt: Date
 }
 
@@ -52,6 +54,14 @@ export default function FormSettingsPage() {
         }
         
         const formData = await response.json()
+        
+        // Log form data for debugging
+        console.log('Form data loaded in settings:', {
+          hasFields: Array.isArray(formData.fields),
+          fieldCount: Array.isArray(formData.fields) ? formData.fields.length : 0,
+          hasBanner: !!formData.banner
+        });
+        
         setForm(formData)
       } catch (error) {
         console.error('Error fetching form:', error)
@@ -73,31 +83,44 @@ export default function FormSettingsPage() {
   }
   
   const saveSettings = async () => {
-    if (!form) return
+    if (!form) return;
     
-    setIsSaving(true)
+    setIsSaving(true);
     
     try {
+      const payload = {
+        ...form,
+        workspaceId: form.workspaceId || null,
+        fields: form.fields || [], // Use existing fields or empty array
+      };
+      
+      // Map field types to match schema if fields exist
+      if (Array.isArray(payload.fields) && payload.fields.length > 0) {
+        payload.fields = prepareFieldsForAPI(payload.fields);
+      }
+      
       const response = await fetch(`/api/forms/${formId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(form),
-      })
+        body: JSON.stringify(payload),
+      });
       
       if (!response.ok) {
-        throw new Error('Failed to save form settings')
+        const errorData = await response.json();
+        console.error('Error saving form settings:', errorData);
+        throw new Error(`Failed to save form settings: ${errorData.error || ''}`);
       }
       
-      const updatedForm = await response.json()
-      setForm(updatedForm)
+      const updatedForm = await response.json();
+      setForm(updatedForm);
     } catch (error) {
-      console.error('Error saving form settings:', error)
+      console.error('Error saving form settings:', error);
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
   
   const deleteForm = async () => {
     try {

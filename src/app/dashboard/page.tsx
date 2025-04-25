@@ -2,8 +2,10 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, MoreHorizontal, FolderIcon, Trash2 } from 'lucide-react';
 import { useUser } from '@clerk/nextjs';
+import { useData } from '@/contexts/DataContext';
+import { toast } from '@/hooks/use-toast';
+import { Plus, MoreHorizontal, FolderIcon, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { 
@@ -24,45 +26,23 @@ import {
 import { workspaceService } from '@/lib/services/workspace-service';
 import { WorkspaceModal } from '@/components/workspace-modal';
 import { DashboardHeader } from '@/components/dashboard-header';
-import { useData } from '@/contexts/DataContext';
-import { toast } from '@/hooks/use-toast';
+import { FormCreateModal } from '@/components/forms/form-create-modal';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user } = useUser();
   const { forms, workspaces, isLoading, refetchData, forceRefresh } = useData();
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+  const [isFormCreateModalOpen, setIsFormCreateModalOpen] = useState(false);
   const [formActionInProgress, setFormActionInProgress] = useState<Record<string, boolean>>({});
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | undefined>();
 
-  // Function to create a new form in the first workspace or open workspace modal if no workspaces
-  const handleCreateForm = async () => {
+  // Function to create a new form
+  const handleCreateForm = () => {
     if (workspaces.length > 0) {
-      try {
-        // Create form in the first workspace
-        const workspace = workspaces[0];
-        const formResponse = await fetch(`/api/workspace/${workspace.id}/forms`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            title: 'Untitled',
-            description: '',
-          }),
-        });
-        
-        if (!formResponse.ok) {
-          throw new Error('Failed to create form');
-        }
-        
-        const newForm = await formResponse.json();
-        router.push(`/dashboard/forms/${newForm.id}`);
-        
-        // Refresh data after creating a form
-        await refetchData();
-      } catch (error) {
-        console.error('Error creating form:', error);
-      }
+      // Set the first workspace as default
+      setSelectedWorkspaceId(workspaces[0].id);
+      setIsFormCreateModalOpen(true);
     } else {
       // If no workspaces, open workspace modal first
       setIsWorkspaceModalOpen(true);
@@ -111,6 +91,11 @@ export default function DashboardPage() {
     } finally {
       setFormActionInProgress(prev => ({ ...prev, [formId]: false }));
     }
+  };
+
+  // Handle successful form creation
+  const handleFormCreateSuccess = (formId: string) => {
+    router.push(`/dashboard/forms/${formId}`);
   };
 
   return (
@@ -243,7 +228,15 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Add WorkspaceModal component */}
+      {/* Form Create Modal */}
+      <FormCreateModal
+        isOpen={isFormCreateModalOpen}
+        onOpenChange={setIsFormCreateModalOpen}
+        workspaceId={selectedWorkspaceId}
+        onSuccess={handleFormCreateSuccess}
+      />
+
+      {/* Workspace Modal */}
       <WorkspaceModal 
         isOpen={isWorkspaceModalOpen}
         onOpenChange={setIsWorkspaceModalOpen}

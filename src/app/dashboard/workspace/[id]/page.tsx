@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "@/hooks/use-toast"
 import { useData } from "@/contexts/DataContext"
+import { FormCreateModal } from "@/components/forms/form-create-modal"
 
 interface FormItem {
   id: string
@@ -57,6 +58,7 @@ export default function WorkspaceDetailPage() {
   const [showDeleteWorkspaceDialog, setShowDeleteWorkspaceDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [formActionInProgress, setFormActionInProgress] = useState<Record<string, boolean>>({})
+  const [isFormCreateModalOpen, setIsFormCreateModalOpen] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -115,28 +117,11 @@ export default function WorkspaceDetailPage() {
 
   const handleCreateForm = async () => {
     if (!workspace) return
+    setIsFormCreateModalOpen(true)
+  }
 
-    try {
-      const formResponse = await fetch(`/api/workspace/${workspace.id}/forms`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: "Untitled",
-          description: "",
-        }),
-      })
-
-      if (!formResponse.ok) {
-        throw new Error("Failed to create form")
-      }
-
-      const newForm = await formResponse.json()
-      router.push(`/dashboard/forms/${newForm.id}`)
-    } catch (error) {
-      console.error("Error creating form:", error)
-    }
+  const handleFormCreateSuccess = (formId: string) => {
+    router.push(`/dashboard/forms/${formId}`)
   }
 
   const handleEditWorkspace = () => {
@@ -398,14 +383,18 @@ export default function WorkspaceDetailPage() {
         </div>
       </div>
 
+      <FormCreateModal
+        isOpen={isFormCreateModalOpen}
+        onOpenChange={setIsFormCreateModalOpen}
+        workspaceId={workspace?.id}
+        onSuccess={handleFormCreateSuccess}
+      />
+      
       <WorkspaceModal
+        workspace={workspace}
         isOpen={isEditModalOpen}
-        onOpenChange={(open) => setIsEditModalOpen(open)}
-        workspaceToEdit={{
-          id: workspace.id,
-          name: workspace.name,
-        }}
-        onSuccess={refreshWorkspace}
+        onOpenChange={setIsEditModalOpen}
+        onSuccess={() => refreshWorkspace()}
       />
       
       {/* Delete Workspace Confirmation Dialog */}

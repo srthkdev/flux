@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prismadb from '@/lib/db'
-import { authService } from '@/lib/services/auth-service'
 import { getAuth } from '@clerk/nextjs/server'
+import { formSchema } from '@/schemas/form'
+import { prepareFieldsForAPI, prepareFieldsForUI } from '@/lib/form-helpers'
+import { authService } from '@/lib/services/auth-service'
 
 // Mark as dynamic to prevent static analysis issues
 export const dynamic = 'force-dynamic';
@@ -26,12 +28,6 @@ export async function GET(
   try {
     const { id } = params;
     
-    if (!id) {
-      return new NextResponse(JSON.stringify({ error: 'Form ID is required' }), {
-        status: 400,
-      });
-    }
-    
     // Handle "new" as a special case for creating a new form
     if (id === 'new') {
       return NextResponse.json({
@@ -40,56 +36,95 @@ export async function GET(
         description: '',
         published: false,
         fields: [],
+        banner: '',
         createdAt: new Date(),
         updatedAt: new Date()
       });
     }
     
-    // Get the form from the database
-    const form = await prismadb.form.findUnique({
-      where: {
-        id,
-        isDeleted: false,
-      },
-    });
+    // Get authenticated user for regular form queries
+    const { userId: clerkUserId } = getAuth(request);
     
-    if (!form) {
-      return new NextResponse(JSON.stringify({ error: 'Form not found' }), {
-        status: 404,
+    // Basic validation
+    if (!id) {
+      return new NextResponse(JSON.stringify({ error: 'Form ID is required' }), {
+        status: 400,
       });
     }
     
-    // For authenticated requests, check ownership
-    const { userId: clerkUserId } = getAuth(request);
-    if (clerkUserId) {
-      // User is authenticated, get their database ID
-      const userId = await getDbUserId(clerkUserId);
-      
-      // If user is authenticated but not the owner, check if form is published
-      if (userId && userId !== form.userId) {
-        const isPublished = await authService.isFormPublished(id);
-        if (!isPublished) {
-          return new NextResponse(JSON.stringify({ error: 'Unauthorized access to form' }), {
-            status: 403,
-          });
+    // Special case for public form access
+    const isPublic = new URL(request.url).searchParams.get('public') === 'true';
+    
+    let form;
+    if (isPublic) {
+      // For public access, only get published forms
+      form = await prismadb.form.findFirst({
+        where: {
+          id,
+          published: true,
+          isDeleted: false
         }
+      });
+      
+      if (!form) {
+        return new NextResponse(JSON.stringify({ error: 'Form not found or not published' }), {
+          status: 404,
+        });
       }
     } else {
-      // For unauthenticated requests, only allow published forms
-      const isPublished = await authService.isFormPublished(id);
-      if (!isPublished) {
-        return new NextResponse(JSON.stringify({ error: 'This form is not available' }), {
-          status: 403,
+      // For private access, check user auth
+      if (!clerkUserId) {
+        return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+        });
+      }
+      
+      // Get database user ID
+      const userId = await getDbUserId(clerkUserId);
+      if (!userId) {
+        return new NextResponse(JSON.stringify({ error: 'User not found' }), {
+          status: 404,
+        });
+      }
+      
+      // Get the form and check access
+      form = await prismadb.form.findFirst({
+        where: {
+          id,
+          userId,
+          isDeleted: false
+        }
+      });
+      
+      if (!form) {
+        return new NextResponse(JSON.stringify({ error: 'Form not found' }), {
+          status: 404,
         });
       }
     }
     
     // Parse the form schema if it exists
-    const fields = form.schema ? JSON.parse(JSON.stringify(form.schema)) : [];
+    const schema = form.schema ? JSON.parse(JSON.stringify(form.schema)) : {};
+    
+    // Extract fields and metadata from the schema
+    let fields = [];
+    let metadata = { banner: '' };
+    
+    // Handle both old format (array) and new format (object with fields and metadata)
+    if (schema.fields && Array.isArray(schema.fields)) {
+      fields = schema.fields;
+      metadata = schema.metadata || { banner: '' };
+    } else if (Array.isArray(schema)) {
+      fields = schema;
+    }
+    
+    // Convert fields for UI display
+    const uiFields = prepareFieldsForUI(fields);
     
     return NextResponse.json({
       ...form,
-      fields
+      fields: uiFields,
+      banner: metadata.banner || '' // Include banner from metadata
     });
   } catch (error) {
     console.error('Error fetching form:', error);
@@ -116,9 +151,11 @@ export async function PATCH(
     
     // Special case for new forms
     if (id === 'new') {
+      const { banner, ...rest } = body;
       return NextResponse.json({
         id: 'new',
-        ...body,
+        ...rest,
+        banner: banner || '',
         updatedAt: new Date()
       });
     }
@@ -148,21 +185,74 @@ export async function PATCH(
     }
     
     // Extract fields from the body to store in schema
-    const { fields, ...formData } = body;
+    const { fields, workspaceId, banner, ...formData } = body;
+    
+    // Ensure fields are properly formatted for the database schema
+    const schemaFields = prepareFieldsForAPI(fields || []);
+    
+    // Create metadata to store with schema
+    const formMetadata = {
+      banner: banner || ''
+    };
+    
+    // Create schema object with fields and metadata
+    const schemaObject = { 
+      fields: schemaFields,
+      metadata: formMetadata
+    };
+    
+    // Validate form data with Zod after mapping field types
+    try {
+      // Create a sanitized payload for validation
+      const validationPayload = {
+        ...formData,
+        fields: schemaFields,
+        workspaceId: workspaceId || undefined,
+        banner: banner || undefined,
+      };
+      
+      formSchema.parse(validationPayload);
+    } catch (validationError) {
+      console.error('Form validation error:', validationError);
+      return new NextResponse(JSON.stringify({ 
+        error: 'Invalid form data', 
+        details: validationError 
+      }), {
+        status: 400,
+      });
+    }
     
     // Update the form in the database
     const updatedForm = await prismadb.form.update({
       where: { id },
       data: {
         ...formData,
-        userId, // Ensure owner is set
-        schema: fields ? fields : undefined,
+        // Use user relation instead of userId field directly
+        user: {
+          connect: { id: userId }
+        },
+        schema: schemaObject, // Store fields and metadata in schema
+        // Handle workspace relationship correctly
+        workspace: workspaceId 
+          ? { connect: { id: workspaceId } }
+          : workspaceId === null 
+            ? { disconnect: true }
+            : undefined
       }
     });
     
+    // Extract data from the schema
+    const savedSchema = updatedForm.schema ? JSON.parse(JSON.stringify(updatedForm.schema)) : {};
+    const savedFields = savedSchema.fields || [];
+    const savedMetadata = savedSchema.metadata || {};
+    
+    // Convert schema back to UI field format for response
+    const uiFields = prepareFieldsForUI(savedFields);
+    
     return NextResponse.json({
       ...updatedForm,
-      fields: fields || []
+      fields: uiFields,
+      banner: savedMetadata.banner || '' // Return banner from metadata
     });
   } catch (error) {
     console.error('Error updating form:', error);

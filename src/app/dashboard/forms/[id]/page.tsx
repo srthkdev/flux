@@ -17,6 +17,9 @@ import { toast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { InteractiveHoverButton } from "@/components/magicui/interactive-hover-button"
 
+// Import form helpers
+import { prepareFieldsForAPI, prepareFieldsForUI } from "@/lib/form-helpers"
+
 interface FormData {
   id: string
   title: string
@@ -92,6 +95,11 @@ export default function FormEditorPage() {
         }
 
         const formData = await response.json()
+        
+        // Convert field types from schema to UI
+        if (formData.fields && Array.isArray(formData.fields)) {
+          formData.fields = prepareFieldsForUI(formData.fields);
+        }
         
         // If we don't have workspace data but we have a workspaceId, fetch the workspace
         if (formData.workspaceId && !formData.workspace) {
@@ -290,14 +298,17 @@ export default function FormEditorPage() {
         throw new Error("Form title is required");
       }
 
+      // Map field types to match schema
+      const mappedFields = prepareFieldsForAPI(fields);
+
       // API payload - only send what's needed
       const payload = {
         title,
         description: description || "",
         published: published !== undefined ? published : false,
-        workspaceId,
+        workspaceId: workspaceId || null, // Explicitly set to null if not present
         banner,
-        schema: fields, // Use schema field for the form fields
+        fields: mappedFields, // Use fields instead of schema
       };
 
       console.log("Saving form with payload:", JSON.stringify(payload, null, 2));
@@ -378,13 +389,16 @@ export default function FormEditorPage() {
         throw new Error("Form title is required");
       }
 
+      // Map field types to match schema
+      const mappedFields = prepareFieldsForAPI(fields);
+
       const payload = {
         title,
         description: description || "",
         published,
-        workspaceId,
+        workspaceId: workspaceId || null, // Explicitly set to null if not present
         banner,
-        schema: fields, // Use schema field for the form fields
+        fields: mappedFields, // Use fields instead of schema
       };
 
       console.log("Publishing form with payload:", JSON.stringify(payload, null, 2));
@@ -612,7 +626,8 @@ export default function FormEditorPage() {
             value={form.title}
             onChange={handleTitleChange}
             placeholder="Form title" 
-            className="w-full text-7xl font-extrabold border-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 mb-4 h-[100px]"
+            className="w-full text-4xl md:text-5xl font-extrabold border-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 mb-4 h-auto py-3"
+            style={{ fontSize: '3rem', lineHeight: '1.2' }}
           />
           <Textarea 
             value={form.description || ''}
