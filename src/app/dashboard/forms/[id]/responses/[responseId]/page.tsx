@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Download, Loader2 } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, FileText, Image, ExternalLink, File } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 import { Button } from '@/components/ui/button'
 import { DashboardHeader } from '@/components/dashboard-header'
@@ -84,29 +85,103 @@ export default function SingleResponsePage() {
     
     if (typeof value === 'object' && value !== null) {
       if (field.type === 'file' && value.fileName) {
+        const isPdf = value.fileType === 'application/pdf' || value.extension === 'pdf';
+        const isImage = value.fileType?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(value.extension);
+        
         return (
           <div className="flex flex-col">
-            <span className="mb-2">{value.fileName}</span>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                // Create a download link from base64 data
-                if (value.content) {
-                  const link = document.createElement('a')
-                  link.href = `data:${value.fileType};base64,${value.content}`
-                  link.download = value.fileName
-                  document.body.appendChild(link)
-                  link.click()
-                  document.body.removeChild(link)
-                }
-              }}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Download File
-            </Button>
+            <div className="flex items-center mb-2">
+              <span className="text-blue-600 hover:underline cursor-pointer flex items-center" 
+                onClick={() => {
+                  if (value.content && (isPdf || isImage)) {
+                    // Create data URL for preview
+                    const dataUrl = `data:${value.fileType};base64,${value.content}`;
+                    window.open(dataUrl, '_blank');
+                  } else {
+                    // Download for non-previewable files
+                    const link = document.createElement('a');
+                    link.href = `data:${value.fileType};base64,${value.content}`;
+                    link.download = value.fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }
+                }}
+              >
+                {isPdf ? (
+                  <FileText className="h-4 w-4 mr-2" />
+                ) : isImage ? (
+                  <Image className="h-4 w-4 mr-2" />
+                ) : (
+                  <File className="h-4 w-4 mr-2" />
+                )}
+                {value.fileName}
+              </span>
+              <Badge className="ml-2" variant="outline">
+                {(value.fileSize / 1024).toFixed(1)} KB
+              </Badge>
+            </div>
+            
+            {/* Preview for PDFs and images */}
+            {isPdf && value.content && (
+              <div className="mt-2 border rounded-md overflow-hidden">
+                <iframe 
+                  src={`data:application/pdf;base64,${value.content}`}
+                  className="w-full h-72"
+                  title={`PDF Preview: ${value.fileName}`}
+                ></iframe>
+              </div>
+            )}
+            
+            {isImage && value.content && (
+              <div className="mt-2 border rounded-md overflow-hidden">
+                <img 
+                  src={`data:${value.fileType};base64,${value.content}`} 
+                  alt={value.fileName}
+                  className="max-h-72 max-w-full object-contain mx-auto"
+                />
+              </div>
+            )}
+            
+            <div className="flex space-x-2 mt-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  // Create a download link from base64 data
+                  if (value.content) {
+                    const link = document.createElement('a');
+                    link.href = `data:${value.fileType};base64,${value.content}`;
+                    link.download = value.fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+              
+              {(isPdf || isImage) && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    // Open file in new tab
+                    if (value.content) {
+                      const dataUrl = `data:${value.fileType};base64,${value.content}`;
+                      window.open(dataUrl, '_blank');
+                    }
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open
+                </Button>
+              )}
+            </div>
           </div>
-        )
+        );
       } else if (field.type === 'checkbox' || field.type === 'multi_select') {
         // For checkbox with options or multi_select, show selected options
         if (Array.isArray(value)) {

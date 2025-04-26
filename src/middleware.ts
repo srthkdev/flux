@@ -5,20 +5,33 @@ import { NextResponse } from "next/server";
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
   "/api/workspace(.*)",
-  "/api/forms(.*)",
+  "/api/forms/(.*)", // All form routes are protected by default
   "/api/user(.*)",
   "/api/favorites(.*)"
 ]);
 
 // Public form routes that don't require authentication
 const isPublicFormRoute = createRouteMatcher([
-  "/forms/(.*)$" // Only allow public access to the form view
+  "/forms/(.*)$", // Public form view
+  "/api/forms/(.*)" // Form API routes can be public with proper params
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // Get the path from the URL
-  const path = new URL(req.url).pathname;
-
+  // Get the path and search params from the URL
+  const url = new URL(req.url);
+  const path = url.pathname;
+  const isPublicParam = url.searchParams.get('public') === 'true';
+  
+  // Special case for form API with public=true parameter
+  if (path.startsWith('/api/forms/') && isPublicParam) {
+    return NextResponse.next();
+  }
+  
+  // Special case for form responses
+  if (path.includes('/api/forms/') && path.includes('/responses')) {
+    return NextResponse.next();
+  }
+  
   // Always protect dashboard and protected API routes
   if (isProtectedRoute(req)) {
     await auth.protect();

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Download, Loader2 } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, FileText, Share } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { DashboardHeader } from '@/components/dashboard-header'
@@ -92,6 +92,34 @@ export default function FormResponsesPage() {
         
         // Handle different types of values
         if (value === undefined || value === null) return ''
+        
+        // Handle file uploads
+        if (typeof value === 'object' && value !== null) {
+          if (field.type === 'file' && value.fileName) {
+            return value.fileName;
+          }
+          
+          // Handle multi-select
+          if ((field.type === 'multi_select' || field.type === 'multiSelect') && Array.isArray(value)) {
+            return value.join(', ');
+          }
+          
+          // For checkbox data stored as object with boolean values
+          if (field.type === 'checkbox' && !Array.isArray(value)) {
+            const selected = Object.entries(value)
+              .filter(([_, selected]) => selected === true)
+              .map(([option]) => option);
+            return selected.join(', ');
+          }
+          
+          // Try to stringify any other objects
+          try {
+            return JSON.stringify(value);
+          } catch (e) {
+            return '[Complex Data]';
+          }
+        }
+        
         if (typeof value === 'boolean') return value ? 'Yes' : 'No'
         return String(value)
       })
@@ -99,10 +127,18 @@ export default function FormResponsesPage() {
       return [date, ...values]
     })
     
+    // Escape CSV values to handle commas, quotes, etc.
+    const escapeCSV = (value: string) => {
+      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+    
     // Combine header and rows
     const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
+      headers.map(h => escapeCSV(h)).join(','),
+      ...rows.map(row => row.map(cell => escapeCSV(String(cell))).join(','))
     ].join('\n')
     
     // Create and download the file
@@ -120,8 +156,76 @@ export default function FormResponsesPage() {
   const formatResponseValue = (field: FormField, value: any) => {
     if (value === undefined || value === null) return '-'
     
+    // Handle file uploads
+    if (typeof value === 'object' && value !== null) {
+      if (field.type === 'file' && value.fileName) {
+        return (
+          <div className="flex items-center">
+            <FileText className="h-4 w-4 mr-2 text-blue-500" />
+            <span className="text-xs text-blue-600 truncate max-w-[120px] inline-block">
+              {value.fileName}
+            </span>
+          </div>
+        );
+      }
+      
+      // Handle multi-select
+      if ((field.type === 'multi_select' || field.type === 'multiSelect') && Array.isArray(value)) {
+        if (value.length === 0) return '-';
+        if (value.length === 1) return value[0];
+        return (
+          <span className="text-xs">
+            {value[0]} <span className="text-xs text-muted-foreground">+{value.length - 1}</span>
+          </span>
+        );
+      }
+      
+      // For checkbox data stored as object with boolean values
+      if (field.type === 'checkbox' && !Array.isArray(value)) {
+        const selected = Object.entries(value)
+          .filter(([_, selected]) => selected === true)
+          .map(([option]) => option);
+        
+        if (selected.length === 0) return '-';
+        if (selected.length === 1) return selected[0];
+        return (
+          <span className="text-xs">
+            {selected[0]} <span className="text-xs text-muted-foreground">+{selected.length - 1}</span>
+          </span>
+        );
+      }
+      
+      // Handle other object types
+      try {
+        const str = JSON.stringify(value);
+        return str.length > 20 ? str.substring(0, 20) + '...' : str;
+      } catch {
+        return '[Data]';
+      }
+    }
+    
+    // Handle boolean values (checkboxes)
     if (field.type === 'checkbox') {
-      return value ? 'Yes' : 'No'
+      return value ? <span className="text-green-600">✓</span> : '-';
+    }
+    
+    // Handle dates
+    if (field.type === 'date' && value) {
+      try {
+        return new Date(value).toLocaleDateString();
+      } catch (e) {
+        return String(value);
+      }
+    }
+    
+    // Truncate long text
+    if ((field.type === 'text' || field.type === 'long_answer') && 
+        typeof value === 'string' && value.length > 30) {
+      return (
+        <span className="truncate max-w-[120px] inline-block" title={value}>
+          {value.substring(0, 30)}...
+        </span>
+      );
     }
     
     return String(value)
@@ -178,37 +282,77 @@ export default function FormResponsesPage() {
         {responses.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
             <h3 className="text-lg font-medium mb-2">No responses yet</h3>
-            <p className="text-muted-foreground mb-6">Share your form to start collecting responses.</p>
-            <Button 
-              onClick={() => router.push(`/dashboard/forms/${formId}`)}
-              variant="outline"
-            >
-              Back to Form
-            </Button>
+            <p className="text-muted-foreground mb-6">
+              Share your form to start collecting responses.
+            </p>
+            <div className="flex justify-center gap-4">
+              <Button 
+                onClick={() => router.push(`/dashboard/forms/${formId}`)}
+                variant="outline"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Form
+              </Button>
+              <Button 
+                onClick={() => {
+                  // Open the share form modal
+                  router.push(`/dashboard/forms/${formId}/dashboard?share=true`);
+                }}
+              >
+                <Share className="h-4 w-4 mr-2" />
+                Share Form
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 bg-white">
                   <TableRow>
-                    <TableHead className="w-48">Submission Date</TableHead>
-                    {form.fields.map((field) => (
-                      <TableHead key={field.id}>{field.label}</TableHead>
-                    ))}
+                    <TableHead className="w-32">Submitted</TableHead>
+                    {form.fields
+                      .filter(field => !['h1', 'h2', 'h3'].includes(field.type))
+                      .slice(0, 6)
+                      .map((field) => (
+                        <TableHead key={field.id} className="max-w-[150px]">
+                          <div className="truncate">{field.label}</div>
+                        </TableHead>
+                      ))}
+                    <TableHead className="text-right w-20">View</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {responses.map((response) => (
-                    <TableRow key={response.id}>
-                      <TableCell className="font-medium">
-                        {new Date(response.createdAt).toLocaleString()}
+                    <TableRow 
+                      key={response.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => router.push(`/dashboard/forms/${formId}/responses/${response.id}`)}
+                    >
+                      <TableCell className="font-medium whitespace-nowrap">
+                        {new Date(response.createdAt).toLocaleDateString()}
                       </TableCell>
-                      {form.fields.map((field) => (
-                        <TableCell key={field.id}>
-                          {formatResponseValue(field, response.data[field.id])}
-                        </TableCell>
-                      ))}
+                      {form.fields
+                        .filter(field => !['h1', 'h2', 'h3'].includes(field.type))
+                        .slice(0, 6)
+                        .map((field) => (
+                          <TableCell key={field.id} className="max-w-[150px]">
+                            {formatResponseValue(field, response.data[field.id])}
+                          </TableCell>
+                        ))}
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/dashboard/forms/${formId}/responses/${response.id}`);
+                          }}
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -47,7 +47,7 @@ export default function SettingsPage() {
         <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-8">
             <TabsTrigger value="account">Account</TabsTrigger>
-            <TabsTrigger value="integrations">Integrations</TabsTrigger>
+            
             <TabsTrigger value="api">API Keys</TabsTrigger>
           </TabsList>
 
@@ -140,77 +140,7 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
 
-          {/* Integrations */}
-          <TabsContent value="integrations" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>External Integrations</CardTitle>
-                <CardDescription>
-                  Connect external services to enhance your forms.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-gray-100 p-2 rounded-md">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M8 4V7L10 9L8 11V14H11L13 16L15 14H18V11L20 9L18 7V4H15L13 2L11 4H8Z" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M15 9L9 15" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M12 18V18.01" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M12 21V21.01" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="font-medium">Google Sheets</p>
-                      <p className="text-sm text-muted-foreground">Export form responses to Google Sheets</p>
-                    </div>
-                  </div>
-                  <Button variant="outline">Connect</Button>
-                </div>
-                
-                <Separator />
-                
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-gray-100 p-2 rounded-md">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M5 5V19H19V5H5Z" stroke="#00BFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M5 9H19" stroke="#00BFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M9 17V13" stroke="#00BFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M12 17V13" stroke="#00BFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M15 17V13" stroke="#00BFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="font-medium">Zapier</p>
-                      <p className="text-sm text-muted-foreground">Connect with 3,000+ apps via Zapier</p>
-                    </div>
-                  </div>
-                  <Button variant="outline">Connect</Button>
-                </div>
-                
-                <Separator />
-                
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-gray-100 p-2 rounded-md">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M20 8V4H16" stroke="#3ECF8E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M4 16V20H8" stroke="#3ECF8E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M20 16V20H16" stroke="#3ECF8E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M4 8V4H8" stroke="#3ECF8E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="font-medium">Slack</p>
-                      <p className="text-sm text-muted-foreground">Send form notifications to Slack channels</p>
-                    </div>
-                  </div>
-                  <Button variant="outline">Connect</Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          
 
           {/* API Keys */}
           <TabsContent value="api" className="space-y-6">

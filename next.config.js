@@ -1,3 +1,10 @@
+// Load EventEmitter configuration early to prevent max listeners warning
+try {
+  require('./src/lib/eventEmitter');
+} catch (error) {
+  console.log('Warning: EventEmitter config could not be loaded, proceeding without it');
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,

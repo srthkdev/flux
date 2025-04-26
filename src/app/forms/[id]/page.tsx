@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { prepareFieldsForUI } from '@/lib/form-helpers'
+import { useZodForm } from '@/hooks/use-zod-form'
+import { toast } from 'sonner'
 
 interface FormData {
   id: string
@@ -38,6 +40,10 @@ interface FormField {
   options?: string[]
   fileTypes?: string[]
   fileSize?: number
+  validation?: {
+    min?: number
+    max?: number
+  }
 }
 
 export default function PublicFormPage() {
@@ -46,12 +52,100 @@ export default function PublicFormPage() {
   const formId = params.id as string
   
   const [form, setForm] = useState<FormData | null>(null)
-  const [formValues, setFormValues] = useState<Record<string, any>>({})
-  const [errors, setErrors] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [bannerImage, setBannerImage] = useState<string | null>(null)
+  
+  // Setup form with Zod validation
+  const { 
+    register, 
+    control, 
+    formState: { errors }, 
+    setValue,
+    watch,
+    submitForm,
+    isSubmitting,
+    submitError 
+  } = useZodForm({
+    fields: form?.fields || [],
+    onSubmit: async (data) => {
+      if (!form) return;
+      
+      try {
+        // Convert file objects to base64 if present
+        const formData: Record<string, any> = { ...data };
+        
+        // Process file uploads
+        const filePromises: Promise<any>[] = [];
+        form.fields.forEach(field => {
+          if (field.type === 'file' && data[field.id] && data[field.id] instanceof File) {
+            filePromises.push(
+              fileToBase64(data[field.id]).then(base64 => {
+                // Extract only the base64 content without the data URL prefix
+                const base64Content = base64.split(',')[1];
+                
+                formData[field.id] = {
+                  fileName: data[field.id].name,
+                  fileType: data[field.id].type,
+                  fileSize: data[field.id].size,
+                  content: base64Content,
+                  // Add mime type and extension for easier handling
+                  mimeType: data[field.id].type,
+                  extension: data[field.id].name.split('.').pop()?.toLowerCase() || ''
+                };
+              })
+            );
+          }
+        });
+        
+        if (filePromises.length > 0) {
+          await Promise.all(filePromises);
+        }
+        
+        console.log(`Submitting form to: /api/forms/${formId}/responses`);
+        
+        // Submit the form data
+        const response = await fetch(`/api/forms/${formId}/responses`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        });
+        
+        // Get the full response text to diagnose any issues
+        const responseText = await response.text();
+        console.log(`Response status: ${response.status}, Response text:`, responseText);
+        
+        // Parse the response if possible
+        let responseData;
+        try {
+          responseData = JSON.parse(responseText);
+        } catch (e) {
+          console.error('Failed to parse response as JSON:', e);
+        }
+        
+        if (!response.ok) {
+          console.error('Form submission error:', responseData || responseText);
+          throw new Error(responseData?.error || 'Failed to submit form');
+        }
+        
+        setIsSubmitted(true);
+        toast.success('Form submitted successfully');
+      } catch (error) {
+        console.error('Error submitting form:', error);
+        toast.error('Failed to submit form. Please try again.');
+        throw error; // Let the form hook handle the error
+      }
+    },
+    onError: (errors) => {
+      console.error('Validation errors:', errors);
+      toast.error('Please fix the errors in the form');
+    }
+  });
+  
+  // Watch form values for file uploads
+  const formValues = watch();
   
   useEffect(() => {
     const fetchForm = async () => {
@@ -81,21 +175,41 @@ export default function PublicFormPage() {
         
         setForm(formData)
         
-        // Initialize form values
-        const initialValues: Record<string, any> = {}
+        // Setup form validation
+        const validationRules: Record<string, any> = {};
+        
+        // Initialize form values for fields that need it
         formData.fields.forEach((field: FormField) => {
           if (field.type === 'checkbox') {
-            initialValues[field.id] = false
+            setValue(field.id, false);
+            if (field.required) {
+              validationRules[field.id] = {
+                validate: (value: boolean) => value === true || 'This checkbox is required'
+              };
+            }
           } else if (field.type === 'multiple_choice' || field.type === 'dropdown') {
-            initialValues[field.id] = ''
+            setValue(field.id, '');
+            if (field.required) {
+              validationRules[field.id] = {
+                validate: (value: string) => !!value || 'Please select an option'
+              };
+            }
           } else if (field.type === 'multi_select') {
-            initialValues[field.id] = []
-          } else {
-            initialValues[field.id] = ''
+            setValue(field.id, []);
+            if (field.required) {
+              validationRules[field.id] = {
+                validate: (value: string[]) => (Array.isArray(value) && value.length > 0) || 'Please select at least one option'
+              };
+            }
           }
-        })
+        });
         
-        setFormValues(initialValues)
+        // Register custom validation rules
+        Object.entries(validationRules).forEach(([fieldId, rules]) => {
+          if (rules) {
+            register(fieldId, rules);
+          }
+        });
         
         // Set banner if available and not empty
         if (formData.banner) {
@@ -107,203 +221,39 @@ export default function PublicFormPage() {
         }
       } catch (error) {
         console.error('Error fetching form:', error)
+        toast.error('Error loading form. Please try again later.');
       } finally {
         setIsLoading(false)
       }
     }
     
-    fetchForm()
-  }, [formId])
-  
-  const handleInputChange = (fieldId: string, value: any) => {
-    setFormValues({
-      ...formValues,
-      [fieldId]: value
-    })
-    
-    // Clear error when user types
-    if (errors[fieldId]) {
-      setErrors({
-        ...errors,
-        [fieldId]: ''
-      })
-    }
-  }
-  
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {}
-    let isValid = true
-    
-    if (!form) return false
-    
-    form.fields.forEach(field => {
-      if (field.required && field.type !== 'h1' && field.type !== 'h2' && field.type !== 'h3') {
-        const value = formValues[field.id]
-        
-        if (field.type === 'checkbox' && !value) {
-          newErrors[field.id] = 'This field is required'
-          isValid = false
-        } else if (field.type === 'file' && (!value || !value.file)) {
-          newErrors[field.id] = 'Please upload a file'
-          isValid = false
-        } else if (field.type === 'multi_select' && (!value || value.length === 0)) {
-          newErrors[field.id] = 'Please select at least one option'
-          isValid = false
-        } else if (field.type !== 'checkbox' && field.type !== 'file' && field.type !== 'multi_select' && (!value || (typeof value === 'string' && value.trim() === ''))) {
-          newErrors[field.id] = 'This field is required'
-          isValid = false
-        }
-      }
-      
-      // File size validation (if a file is uploaded)
-      if (field.type === 'file' && formValues[field.id]?.file) {
-        const file = formValues[field.id].file as File
-        const maxSizeInBytes = (field.fileSize || 5) * 1024 * 1024 // Convert MB to bytes
-        
-        if (file.size > maxSizeInBytes) {
-          newErrors[field.id] = `File size exceeds the maximum limit of ${field.fileSize || 5}MB`
-          isValid = false
-        }
-        
-        // File type validation
-        if (field.fileTypes && field.fileTypes.length > 0) {
-          const fileType = file.type
-          const isValidType = field.fileTypes.some(type => {
-            if (type.endsWith('/*')) {
-              // Handle wildcards like 'image/*'
-              const mainType = type.split('/')[0]
-              return fileType.startsWith(mainType + '/')
-            }
-            return type === fileType
-          })
-          
-          if (!isValidType) {
-            newErrors[field.id] = 'Invalid file type'
-            isValid = false
-          }
-        }
-      }
-      
-      // Email validation
-      if (field.type === 'email' && formValues[field.id]) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(formValues[field.id])) {
-          newErrors[field.id] = 'Please enter a valid email address'
-          isValid = false
-        }
-      }
-      
-      // Phone validation
-      if (field.type === 'phone' && formValues[field.id]) {
-        const phoneRegex = /^\+?[0-9]{10,15}$/
-        if (!phoneRegex.test(formValues[field.id].replace(/\s+/g, ''))) {
-          newErrors[field.id] = 'Please enter a valid phone number'
-          isValid = false
-        }
-      }
-      
-      // URL validation
-      if (field.type === 'link' && formValues[field.id]) {
-        try {
-          new URL(formValues[field.id])
-        } catch (e) {
-          newErrors[field.id] = 'Please enter a valid URL'
-          isValid = false
-        }
-      }
-    })
-    
-    setErrors(newErrors)
-    return isValid
-  }
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!validateForm()) {
-      return
+    if (formId) {
+      fetchForm()
     }
     
-    setIsSubmitting(true)
-    
-    try {
-      // Prepare data for submission by handling file uploads
-      const submissionData: Record<string, any> = {}
-      
-      for (const fieldId in formValues) {
-        const value = formValues[fieldId]
-        const field = form?.fields.find(f => f.id === fieldId)
-        
-        if (field?.type === 'file' && value?.file) {
-          // For file uploads, we need to convert to base64 for the API
-          const file = value.file as File
-          const base64 = await fileToBase64(file)
-          submissionData[fieldId] = {
-            fileName: file.name,
-            fileType: file.type,
-            fileSize: file.size,
-            content: base64,
-          }
-        } else {
-          submissionData[fieldId] = value
-        }
-      }
-      
-      console.log(`Submitting form data for formId: ${formId}`, submissionData)
-      
-      const response = await fetch(`/api/forms/${formId}/responses`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submissionData),
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`Failed to submit form: ${response.status} ${response.statusText}`, errorText)
-        throw new Error(`Failed to submit form: ${response.status} ${response.statusText}`)
-      }
-      
-      const responseData = await response.json()
-      console.log('Form submission successful:', responseData)
-      
-      setIsSubmitted(true)
-    } catch (error) {
-      console.error('Error submitting form:', error)
-      setErrors({
-        _form: 'There was an error submitting the form. Please try again.'
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+    // Cleanup function
+    return () => {
+      // No cleanup needed
+    };
+  }, [formId, setValue, register])
   
-  // Helper function to convert file to base64
+  // Handle file input change
+  const handleFileChange = (fieldId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setValue(fieldId, file);
+    }
+  };
+  
+  // Function to convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      
-      reader.onload = () => {
-        const result = reader.result as string
-        resolve(result.split(',')[1]) // Remove the data URL part
-      }
-      
-      reader.onerror = () => {
-        reject(new Error('Failed to read file'))
-      }
-      
-      reader.readAsDataURL(file)
-    })
-  }
-  
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
-  }
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
   
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-6 py-8">
@@ -348,7 +298,7 @@ export default function PublicFormPage() {
             )}
           </div>
           
-          <form onSubmit={handleSubmit} className="space-y-8">
+          <form onSubmit={(e) => { e.preventDefault(); submitForm(); }} className="space-y-8">
             {form.fields.map((field) => (
               <div 
                 key={field.id} 
@@ -381,20 +331,38 @@ export default function PublicFormPage() {
                     {field.type === 'text' && (
                       <Input
                         id={field.id}
-                        value={formValues[field.id] || ''}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
                         placeholder={field.placeholder || ""}
                         className={errors[field.id] ? 'border-red-500' : ''}
+                        {...register(field.id, {
+                          required: field.required ? 'This field is required' : false,
+                          minLength: field.validation?.min ? {
+                            value: field.validation.min,
+                            message: `Must be at least ${field.validation.min} characters`
+                          } : undefined,
+                          maxLength: field.validation?.max ? {
+                            value: field.validation.max,
+                            message: `Cannot exceed ${field.validation.max} characters`
+                          } : undefined
+                        })}
                       />
                     )}
                     
                     {field.type === 'long_answer' && (
                       <Textarea
                         id={field.id}
-                        value={formValues[field.id] || ''}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
                         placeholder={field.placeholder || ""}
                         className={`min-h-[100px] ${errors[field.id] ? 'border-red-500' : ''}`}
+                        {...register(field.id, {
+                          required: field.required ? 'This field is required' : false,
+                          minLength: field.validation?.min ? {
+                            value: field.validation.min,
+                            message: `Must be at least ${field.validation.min} characters`
+                          } : undefined,
+                          maxLength: field.validation?.max ? {
+                            value: field.validation.max,
+                            message: `Cannot exceed ${field.validation.max} characters`
+                          } : undefined
+                        })}
                       />
                     )}
                     
@@ -402,10 +370,26 @@ export default function PublicFormPage() {
                       <Input
                         id={field.id}
                         type="number"
-                        value={formValues[field.id] || ''}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
                         placeholder={field.placeholder || ""}
+                        min={field.validation?.min}
+                        max={field.validation?.max}
+                        step="any"
                         className={errors[field.id] ? 'border-red-500' : ''}
+                        {...register(field.id, {
+                          valueAsNumber: true,
+                          validate: value => {
+                            if (field.required && (value === undefined || value === null || isNaN(value))) {
+                              return 'This field is required';
+                            }
+                            if (field.validation?.min !== undefined && value < field.validation.min) {
+                              return `Value must be at least ${field.validation.min}`;
+                            }
+                            if (field.validation?.max !== undefined && value > field.validation.max) {
+                              return `Value cannot exceed ${field.validation.max}`;
+                            }
+                            return true;
+                          }
+                        })}
                       />
                     )}
                     
@@ -413,10 +397,15 @@ export default function PublicFormPage() {
                       <Input
                         id={field.id}
                         type="email"
-                        value={formValues[field.id] || ''}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
                         placeholder={field.placeholder || "name@example.com"}
                         className={errors[field.id] ? 'border-red-500' : ''}
+                        {...register(field.id, {
+                          required: field.required ? 'Email is required' : false,
+                          pattern: {
+                            value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                            message: 'Please enter a valid email address'
+                          }
+                        })}
                       />
                     )}
                     
@@ -424,10 +413,15 @@ export default function PublicFormPage() {
                       <Input
                         id={field.id}
                         type="tel"
-                        value={formValues[field.id] || ''}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
                         placeholder={field.placeholder || "+1 (555) 000-0000"}
                         className={errors[field.id] ? 'border-red-500' : ''}
+                        {...register(field.id, {
+                          required: field.required ? 'Phone number is required' : false,
+                          pattern: {
+                            value: /^\+?[0-9]{10,15}$/,
+                            message: 'Please enter a valid phone number'
+                          }
+                        })}
                       />
                     )}
                     
@@ -435,9 +429,11 @@ export default function PublicFormPage() {
                       <Input
                         id={field.id}
                         type="date"
-                        value={formValues[field.id] || ''}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
                         className={errors[field.id] ? 'border-red-500' : ''}
+                        {...register(field.id, {
+                          required: field.required ? 'Date is required' : false,
+                          valueAsDate: true
+                        })}
                       />
                     )}
                     
@@ -445,9 +441,10 @@ export default function PublicFormPage() {
                       <Input
                         id={field.id}
                         type="time"
-                        value={formValues[field.id] || ''}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
                         className={errors[field.id] ? 'border-red-500' : ''}
+                        {...register(field.id, {
+                          required: field.required ? 'Time is required' : false
+                        })}
                       />
                     )}
                     
@@ -455,60 +452,72 @@ export default function PublicFormPage() {
                       <Input
                         id={field.id}
                         type="url"
-                        value={formValues[field.id] || ''}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
                         placeholder={field.placeholder || "https://example.com"}
                         className={errors[field.id] ? 'border-red-500' : ''}
+                        {...register(field.id, {
+                          required: field.required ? 'URL is required' : false,
+                          pattern: {
+                            value: /^(https?:\/\/)?(www\.)?[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})+([\/\w-]*)*(\?[^\s]*)?$/,
+                            message: 'Please enter a valid URL'
+                          }
+                        })}
                       />
                     )}
                     
-                    {field.type === 'checkbox' && field.options && field.options.length > 0 && (
-                      <div className="space-y-2">
-                        {field.options.map((option, i) => (
-                          <div key={i} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`${field.id}-${i}`}
-                              checked={formValues[field.id]?.[option] || false}
-                              onCheckedChange={(checked) => {
-                                handleInputChange(field.id, {
-                                  ...formValues[field.id],
-                                  [option]: checked
-                                })
-                              }}
-                              className={errors[field.id] ? 'border-red-500' : ''}
-                            />
-                            <Label htmlFor={`${field.id}-${i}`} className="text-sm font-normal">
-                              {option}
-                            </Label>
-                          </div>
-                        ))}
+                    {field.type === 'checkbox' && (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={field.id}
+                          checked={formValues[field.id] || false}
+                          onCheckedChange={(checked) => {
+                            setValue(field.id, checked === true, {
+                              shouldValidate: field.required
+                            });
+                          }}
+                        />
+                        <Label htmlFor={field.id} className="font-normal">
+                          {field.placeholder || "Yes"}
+                        </Label>
                       </div>
                     )}
                     
                     {field.type === 'multiple_choice' && field.options && field.options.length > 0 && (
                       <RadioGroup
                         value={formValues[field.id] || ''}
-                        onValueChange={(value) => handleInputChange(field.id, value)}
-                        className={errors[field.id] ? 'text-red-500' : ''}
+                        onValueChange={(value) => {
+                          setValue(field.id, value, {
+                            shouldValidate: field.required
+                          });
+                        }}
+                        className="space-y-2"
                       >
-                        <div className="space-y-2">
-                          {field.options.map((option, i) => (
-                            <div key={i} className="flex items-center space-x-2">
-                              <RadioGroupItem value={option} id={`${field.id}-${i}`} />
-                              <Label htmlFor={`${field.id}-${i}`} className="text-sm font-normal">{option}</Label>
-                            </div>
-                          ))}
-                        </div>
+                        {field.options.map((option, i) => (
+                          <div key={i} className="flex items-center space-x-2">
+                            <RadioGroupItem value={option} id={`${field.id}-${i}`} />
+                            <Label htmlFor={`${field.id}-${i}`} className="font-normal">
+                              {option}
+                            </Label>
+                          </div>
+                        ))}
+                        {field.required && !formValues[field.id] && errors[field.id] && (
+                          <p className="text-sm text-red-500 mt-1">
+                            Please select an option
+                          </p>
+                        )}
                       </RadioGroup>
                     )}
                     
                     {field.type === 'dropdown' && field.options && field.options.length > 0 && (
                       <Select
                         value={formValues[field.id] || ''}
-                        onValueChange={(value) => handleInputChange(field.id, value)}
+                        onValueChange={(value) => {
+                          setValue(field.id, value, {
+                            shouldValidate: field.required
+                          });
+                        }}
                       >
                         <SelectTrigger className={errors[field.id] ? 'border-red-500' : ''}>
-                          <SelectValue placeholder="Select an option" />
+                          <SelectValue placeholder={field.placeholder || "Select an option"} />
                         </SelectTrigger>
                         <SelectContent>
                           {field.options.map((option, i) => (
@@ -524,72 +533,87 @@ export default function PublicFormPage() {
                       <div className="space-y-2">
                         {field.options.map((option, i) => (
                           <div key={i} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`${field.id}-${i}`}
-                              checked={formValues[field.id]?.includes(option) || false}
+                            <Checkbox 
+                              id={`${field.id}-${i}`} 
+                              checked={Array.isArray(formValues[field.id]) && formValues[field.id].includes(option)}
                               onCheckedChange={(checked) => {
-                                const currentValues = [...(formValues[field.id] || [])]
+                                const currentValues = Array.isArray(formValues[field.id]) ? [...formValues[field.id]] : [];
                                 if (checked) {
-                                  if (!currentValues.includes(option)) {
-                                    handleInputChange(field.id, [...currentValues, option])
-                                  }
+                                  setValue(field.id, [...currentValues, option], {
+                                    shouldValidate: field.required
+                                  });
                                 } else {
-                                  handleInputChange(field.id, currentValues.filter(v => v !== option))
+                                  setValue(field.id, currentValues.filter(val => val !== option), {
+                                    shouldValidate: field.required
+                                  });
                                 }
                               }}
-                              className={errors[field.id] ? 'border-red-500' : ''}
                             />
-                            <Label htmlFor={`${field.id}-${i}`} className="text-sm font-normal">
+                            <Label htmlFor={`${field.id}-${i}`} className="font-normal">
                               {option}
                             </Label>
                           </div>
                         ))}
-                      </div>
-                    )}
-                    
-                    {field.type === 'file' && (
-                      <div className="space-y-2">
-                        <div className="border border-dashed border-gray-300 rounded-md p-6 text-center">
-                          <input
-                            id={field.id}
-                            type="file"
-                            className={`w-full ${errors[field.id] ? 'text-red-500' : ''}`}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0]
-                              if (file) {
-                                handleInputChange(field.id, { file })
-                              }
-                            }}
-                            accept={field.fileTypes?.join(',') || '*/*'}
-                          />
-                          <p className="text-xs text-gray-500 mt-2">
-                            Max size: {field.fileSize || 5}MB
+                        {field.required && errors[field.id] && (
+                          <p className="text-sm text-red-500 mt-1">
+                            Please select at least one option
                           </p>
-                        </div>
-                        
-                        {formValues[field.id]?.file && (
-                          <div className="text-sm mt-1">
-                            Selected file: {formValues[field.id].file.name}
-                          </div>
                         )}
                       </div>
                     )}
                     
+                    {field.type === 'file' && (
+                      <div>
+                        <Input
+                          id={field.id}
+                          type="file"
+                          className={errors[field.id] ? 'border-red-500' : ''}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              // Check file size if specified
+                              const maxSize = field.fileSize ? field.fileSize * 1024 * 1024 : 5 * 1024 * 1024; // Default 5MB
+                              if (file.size > maxSize) {
+                                toast.error(`File size exceeds the maximum limit of ${field.fileSize || 5}MB`);
+                                e.target.value = ''; // Clear input
+                                return;
+                              }
+                              
+                              // Check file type if specified
+                              if (field.fileTypes && field.fileTypes.length > 0) {
+                                const isValidType = field.fileTypes.some(type => 
+                                  file.type === type || file.name.endsWith(`.${type.split('/')[1]}`)
+                                );
+                                if (!isValidType) {
+                                  toast.error(`Invalid file type. Allowed: ${field.fileTypes.join(', ')}`);
+                                  e.target.value = ''; // Clear input
+                                  return;
+                                }
+                              }
+                              
+                              setValue(field.id, file);
+                            } else if (field.required) {
+                              setValue(field.id, undefined);
+                            }
+                          }}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {field.fileTypes?.join(', ') || "All file types"} allowed. 
+                          Max size: {field.fileSize || 5}MB
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Display validation error */}
                     {errors[field.id] && (
-                      <p className="text-sm text-red-500">
-                        {errors[field.id]}
+                      <p className="text-sm text-red-500 mt-1">
+                        {errors[field.id]?.message?.toString() || 'This field is required'}
                       </p>
                     )}
                   </div>
                 )}
               </div>
             ))}
-            
-            {errors._form && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-                {errors._form}
-              </div>
-            )}
             
             <div className="mt-8 flex items-start justify-start pb-10">
               <InteractiveHoverButton
@@ -610,6 +634,14 @@ export default function PublicFormPage() {
                 )}
               </InteractiveHoverButton>
             </div>
+            
+            {/* Display form-level error */}
+            {submitError && (
+              <div className="mt-4 p-3 bg-red-50 text-red-800 rounded-md">
+                <p>An error occurred: {submitError.message}</p>
+                <p className="text-sm">Please try again or contact support if the problem persists.</p>
+              </div>
+            )}
           </form>
         </>
       )}

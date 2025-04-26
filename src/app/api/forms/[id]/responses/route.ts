@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prismadb from '@/lib/db'
 import { formResponseSchema } from '@/schemas/form'
+import { getAuth } from '@clerk/nextjs/server'
 
 // This endpoint is dynamic and will be server-rendered
 export const dynamic = 'force-dynamic';
@@ -35,14 +36,17 @@ export async function GET(
 
 // Submit a new response for a form
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  console.log('POST request received for form response', params.id);
+  
   try {
     const formId = params.id
     
     // Validate form ID
     if (!formId) {
+      console.error('Form ID is missing');
       return NextResponse.json({ error: 'Form ID is required' }, { status: 400 })
     }
     
@@ -52,10 +56,12 @@ export async function POST(
     })
     
     if (!form) {
-      return NextResponse.json({ error: 'Form not found' }, { status: 404 })
+      console.error(`Form with ID ${formId} not found`);
+      return NextResponse.json({ error: `Form with ID ${formId} not found` }, { status: 404 })
     }
     
     if (!form.published) {
+      console.error(`Form with ID ${formId} is not published`);
       return NextResponse.json(
         { error: 'This form is not accepting responses' },
         { status: 403 }
@@ -63,11 +69,13 @@ export async function POST(
     }
     
     // Get the form data
-    const data = await request.json()
+    const formResponseData = await request.json()
+    
+    console.log('Received form submission data:', JSON.stringify(formResponseData).substring(0, 200) + '...');
     
     // Validate response data with Zod
     try {
-      formResponseSchema.parse(data);
+      formResponseSchema.parse(formResponseData);
     } catch (validationError) {
       console.error('Form response validation error:', validationError);
       return NextResponse.json({ 
@@ -76,20 +84,38 @@ export async function POST(
       }, { status: 400 });
     }
     
-    // Create the response
-    const response = await prismadb.formResponse.create({
-      data: {
-        formId,
-        data: data as any,
-      },
-    })
-    
-    return NextResponse.json({ success: true, responseId: response.id })
+    try {
+      // Create the response
+      const response = await prismadb.formResponse.create({
+        data: {
+          formId,
+          data: formResponseData as any,
+        },
+      });
+      
+      console.log('Form response created successfully:', response.id);
+      return NextResponse.json({ 
+        success: true, 
+        responseId: response.id,
+        message: 'Form response submitted successfully'
+      });
+    } catch (dbError) {
+      console.error('Database error creating form response:', dbError);
+      return NextResponse.json({ 
+        error: 'Database error', 
+        message: dbError instanceof Error ? dbError.message : String(dbError)
+      }, { status: 500 });
+    }
   } catch (error) {
     console.error('Error creating form response:', error)
     return NextResponse.json(
-      { error: 'Failed to submit form response' },
+      { error: 'Failed to submit form response', message: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     )
   }
-} 
+}
+
+// Remove the deprecated export const config
+// export const config = {
+//   matcher: ['/api/forms/:id/responses'],
+// }; 

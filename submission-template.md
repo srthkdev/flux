@@ -7,113 +7,107 @@ assignees: ''
 ---
 
 # Project Title
-
-**Flux: Superintelligent Form Builder with Agents and Memory**
+Flux: Form Builder with AI-Powered Creation and Analysis
 
 ## Overview of the Idea
-
-Flux is a next-gen form platform powered by intelligent agents, multi-step tool use, and memory. Users can describe what they want — and Flux builds the form, wires the logic, and connects responses to insights or external APIs. It doesn’t just store responses — it understands them. We’ve integrated Agno, Mem0, and Firecrawl to power this intelligence layer.
+Flux simplifies form creation and response analysis through AI. Users create a project with a description, and Flux builds contextually relevant forms based on natural language requests. Beyond storage, Flux allows users to analyze response data through conversation, generating insights and visualizations on demand. Additionally, Flux scrapes URLs and analyzes attachments in responses to provide richer insights. We've integrated Agno for reasoning, Mem0 for contextual memory across the form lifecycle, and Firecrawl for content analysis to power this intelligence layer.
 
 ## Project Goal
-
-Showcase how agentic reasoning, persistent memory, and multi-step tool use through user-defined APIs can transform basic forms into smart interfaces — capable of adapting, understanding, and triggering actions automatically.
+Create a tool that reduces friction in form creation and unlocks deeper insights from form data through conversational queries and external content analysis.
 
 ## How It Works
-
-1. User signs in with Clerk
-2. Clicks “New Form” and enters a goal like: *“Create a product feedback form with sentiment tagging and Slack alerts for angry customers”*
-3. Agno interprets and creates the form schema + validations
-4. Mem0 stores context and builds on it — agents learn from form evolution and past edits
-5. Cmd+K menu and `/commands` let you control structure and behavior
-6. Cmd+/ opens form-aware agent chat for editing, analysis, or help
-7. On submission, agents analyze, flag trends, summarize, and trigger tools (Slack, Notion, Airtable, Gmail, etc.)
-8. Firecrawl scrapes external links (e.g., portfolios) and returns structured signals to enrich response understanding
-9. Users can configure custom APIs, select tools, and define multi-step workflows — including when and how to trigger, what message or data to pass, and conditional logic for execution.
+- User signs in with Clerk
+- Creates a project/workspace with description
+- Clicks "New Form" and enters a goal like: "Create a product feedback form with rating scales"
+- Agno interprets the request using project context and past form creation patterns from Mem0
+- Menu buttons and command interface let you control structure and behavior
+- Chat button opens interface for editing, analysis, or help
+- Firecrawl scrapes external links (e.g., portfolios, websites) and analyzes attachments from responses
+- Mem0 stores past form structures, modifications, and insights from submissions
+- Once responses arrive, users query their data:
+  - "What's the average satisfaction rating?"
+  - "Generate a pie chart of feature priorities"
+  - "Summarize themes in negative feedback"
+  - "Show sentiment trends over time"
+  - "Analyze the common elements in submitted portfolios"
+  - "How does this compare to last month's feedback?"
 
 ## Tools Used
-
-- **Agno** – Agentic orchestration layer
-- **Mem0** – Memory for schema, sessions, user history
-- **Firecrawl** – Scraping external URLs from form fields
-- **Gemini API** – Core LLM
-- **Next.js 14** – Fullstack app
-- **Tailwind CSS + Shadcn UI** – UI system
-- **Bun** – Runtime
-- **Zustand** – State management
-- **TanStack Query/Table** – Data syncing & display
-- **React Hook Form + Zod** – Validation
-- **NeonDB + Prisma** – DB layer
-- **Clerk** – Auth
+- Agno – Agentic reasoning layer for form building and analysis
+- Mem0 – Project memory for context retention across form creation and analysis
+- Gemini API – Core LLM
+- Firecrawl – Scraping external URLs and analyzing attachments
+- Next.js 14 – Fullstack app
+- Tailwind CSS + Shadcn UI – UI system
+- Bun – Runtime
+- Zustand – State management
+- TanStack Query/Table – Data syncing & display
+- React Hook Form + Zod – Validation
+- NeonDB + Prisma – DB layer
+- Clerk – Auth
 
 ## Use Cases
+### 1. Product Feedback Forms
+- Create comprehensive feedback forms quickly
+- Query sentiment patterns in responses
+- Visualize feature requests and priorities
+- Analyze trends in customer satisfaction
+- Extract insights from attached screenshots or documentation
 
-### 1. **Product Feedback Forms**
-- Auto-tag responses by sentiment
-- Alert product managers if negative trends spike
-- Summarize most-requested features
-- Trigger a Slack alert + create Notion task for high-priority feedback
+### 2. Hiring Forms
+- Build application forms with natural language
+- Identify top candidates through response analysis
+- Visualize applicant distribution by skills
+- Extract insights from GitHub, portfolios, and attached resumes
+- Auto-evaluate technical expertise based on submitted URLs
 
-### 2. **Hiring Forms**
-- Auto-evaluate GitHub, portfolio links (via Firecrawl)
-- Highlight candidates with deployed projects
-- Score technical alignment with job description
-- If score > 80%, auto-send Gmail invitation + add to Airtable pipeline
+### 3. Event Registration
+- Create event registration forms efficiently
+- Understand attendee demographics through queries
+- Generate visualizations of registration patterns
+- Analyze feedback for future planning
+- Extract data from submitted social profiles or company websites
 
-### 3. **Event Registration**
-- Suggest event improvements based on past feedback
-- Group attendees by interest/themes
-- Predict attendance drops based on signup behavior
-- Multi-step: First analyze comments with LLM, then notify team via Slack and update Google Sheet
-
-### 4. **Course/Workshop Applications**
-- Flag duplicate or fake entries
-- Suggest scholarship candidates based on goals
-- Summarize applicant backgrounds for instructors
-- Trigger onboarding email + send data to internal CRM
-
-## API and Tool Customization
-
-- Users can configure any API endpoint to be called on submission
-- Prompt the agent: *"If response mentions 'urgent bug', send Slack alert and create GitHub issue with summary"*
-- Tool selection UI: Choose from Gmail, Slack, Notion, Google Sheets, Airtable, or your own custom tools
-- Support for multi-step tool use: 
-  - Step 1: Search company name on Google
-  - Step 2: If result contains a job page → Send Slack alert
-  - Step 3: Email candidate if matched
-- Memory ensures past configurations, prompt styles, and tool usage patterns are retained for future automation
-- Reasoning enables the agent to dynamically determine which tools to invoke based on context
+### 4. Course/Workshop Applications
+- Build application forms quickly
+- Understand applicant goals and backgrounds
+- Visualize applicant distribution by interests
+- Analyze application quality and fit
+- Review attached work samples or project documentation
 
 ## UI Approach
-
 - Clean layout with sidebar
-- Cmd+K floating menu
-- Cmd+/ opens agent chat
-- Table view with filters, AI summaries, scraped info
+- Intuitive menu button interface
+- AI chat button for assistance
+- Table view with filters
+- Interactive visualizations
 - Fully responsive
 
 ## Visuals
-
 - Builder UI
-- Cmd+K interaction
-- Agent chat
-- Submission dashboard
-- Architecture (Agno + Mem0 + Firecrawl)
+- Chat interface
+- Visualization dashboard
+- Response analysis view
+- Scraped content insights
 
 ## Team Info
-
-- **Team Lead**: `@srthkdev`
-- **Team Members**: Solo
+Team Lead: Sarthak Jain @srthkdev  
+Background/Experience: Fullstack and AI workflow developer with experience in building productivity-first LLM tools.
 
 ## Prize Category
-
-- [x] Best use of Agno
-- [x] Best use of Mem0
-- [x] Best Overall Project
+- Best Overall Project
+- Best use of Agno
+- Best use of Firecrawl
+- Best use of Mem0
 
 ## Demo Video Link
-
-*To be added before deadline*
+To be added before deadline
 
 ## Final Notes
+Forms are still built with outdated workflows and yield limited insights. Flux addresses these problems through three key components:
+1. Form creation through natural language using Agno's reasoning capabilities and Mem0's project context
+2. Contextually-aware forms that understand the project's goals through Mem0's memory system
+3. Rich data analysis through conversation with historical context from Mem0
+4. Enhanced insights from external content via Firecrawl
 
-Forms today are dumb. Flux upgrades them. It remembers, it reasons, it acts. With agents, memory, scraping, reasoning, multi-step tool use, and user-defined APIs, Flux becomes a programmable assistant on top of form workflows. Whether you're triggering Slack alerts, scraping links, or chaining tools like Gmail → Notion → Sheets, Flux gives you the control and intelligence traditional tools lack.
+This combination saves time and uncovers valuable insights that would otherwise require manual analysis. Flux remembers project context, past form structures, and submission patterns, making each new form more relevant and each analysis more insightful.
