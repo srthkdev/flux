@@ -24,9 +24,11 @@ export const formFieldSchema = z.object({
     'checkbox',
     'radio',
     'fileUpload',
+    'url',
     'h1',
     'h2',
-    'h3'
+    'h3',
+    'ai'
   ]),
   label: z.string().min(1, 'Label is required'),
   placeholder: z.string().optional(),
@@ -34,6 +36,10 @@ export const formFieldSchema = z.object({
   options: z.array(z.string()).optional(),
   description: z.string().optional(),
   validation: fieldOptionsSchema.optional(),
+  // AI field properties
+  is_ai_field: z.boolean().optional(),
+  ai_metadata_prompt: z.string().optional(),
+  ai_computed_value: z.string().optional(),
 });
 
 // Schema for a form - modified to make fields optional for settings page

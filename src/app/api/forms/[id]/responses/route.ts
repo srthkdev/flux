@@ -8,11 +8,11 @@ export const dynamic = 'force-dynamic';
 
 // Get responses for a specific form
 export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
-    const { id } = params
+    const { id } = await params
     
     if (!id) {
       return new NextResponse(JSON.stringify({ error: 'Form ID is required' }), {
@@ -37,31 +37,30 @@ export async function GET(
 // Submit a new response for a form
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  console.log('POST request received for form response', params.id);
-  
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
-    const formId = params.id
+    const { id } = await params;
+    console.log('POST request received for form response', id);
     
     // Validate form ID
-    if (!formId) {
+    if (!id) {
       console.error('Form ID is missing');
       return NextResponse.json({ error: 'Form ID is required' }, { status: 400 })
     }
     
     // Check if form exists and is published
     const form = await prismadb.form.findUnique({
-      where: { id: formId },
+      where: { id: id },
     })
     
     if (!form) {
-      console.error(`Form with ID ${formId} not found`);
-      return NextResponse.json({ error: `Form with ID ${formId} not found` }, { status: 404 })
+      console.error(`Form with ID ${id} not found`);
+      return NextResponse.json({ error: `Form with ID ${id} not found` }, { status: 404 })
     }
     
     if (!form.published) {
-      console.error(`Form with ID ${formId} is not published`);
+      console.error(`Form with ID ${id} is not published`);
       return NextResponse.json(
         { error: 'This form is not accepting responses' },
         { status: 403 }
@@ -88,7 +87,7 @@ export async function POST(
       // Create the response
       const response = await prismadb.formResponse.create({
         data: {
-          formId,
+          formId: id,
           data: formResponseData as any,
         },
       });

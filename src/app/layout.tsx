@@ -3,8 +3,9 @@ import { Inter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
-import { ThemeProvider } from '@/components/theme-provider'
+import { ThemeProvider } from '@/components/ui/theme-provider'
 import { DataProvider } from '@/contexts/DataContext';
+import QueryProvider from "@/components/providers/query-provider";
 
 // Configure Inter font
 const inter = Inter({
@@ -52,9 +53,11 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <DataProvider>
-              {children}
-            </DataProvider>
+            <QueryProvider>
+              <DataProvider>
+                {children}
+              </DataProvider>
+            </QueryProvider>
             <Toaster />
           </ThemeProvider>
         </body>

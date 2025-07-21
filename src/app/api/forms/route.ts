@@ -37,16 +37,34 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    // Fetch forms for the user
+    // Fetch forms for the user with submission counts
     const forms = await prismadb.form.findMany({
       where: { 
         userId,
         isDeleted: false,
       },
+      include: {
+        _count: {
+          select: {
+            responses: true
+          }
+        }
+      },
       orderBy: { updatedAt: 'desc' },
     });
+
+    // Transform the data to include submissionCount at the top level
+    const formsWithSubmissionCounts = forms.map(form => ({
+      ...form,
+      submissionCount: form._count.responses,
+      _count: undefined // Remove the _count object from the response
+    }));
     
-    return NextResponse.json(forms);
+    return NextResponse.json(formsWithSubmissionCounts, {
+      headers: {
+        'Cache-Control': 'public, max-age=10, stale-while-revalidate=60',
+      }
+    });
   } catch (error) {
     console.error('Error fetching forms:', error);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), {
@@ -59,7 +77,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title } = body;
+    // Destructure schema from body as well
+    const { title, description, schema } = body; 
     
     if (!title) {
       return new NextResponse(JSON.stringify({ error: 'Title is required' }), {
@@ -87,9 +106,11 @@ export async function POST(request: NextRequest) {
     const form = await prismadb.form.create({
       data: {
         title,
+        description: description || "", // Add description here too
         userId,
         published: false,
-        schema: [],
+        // Use the schema from the request body, default to empty array if not provided
+        schema: schema || [], 
       },
     });
     

@@ -23,10 +23,10 @@ async function getDbUserId(clerkUserId: string | null): Promise<string | null> {
 // Get a specific form
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
-    const { id } = params;
+    const { id } = await params;
     
     // Handle "new" as a special case for creating a new form
     if (id === 'new') {
@@ -121,11 +121,17 @@ export async function GET(
     // Convert fields for UI display
     const uiFields = prepareFieldsForUI(fields);
     
+    const headers = {
+      'Cache-Control': isPublic 
+        ? 'public, max-age=60, stale-while-revalidate=600' // Longer cache for public forms
+        : 'public, max-age=10, stale-while-revalidate=60'  // Shorter cache for private forms
+    };
+    
     return NextResponse.json({
       ...form,
       fields: uiFields,
       banner: metadata.banner || '' // Include banner from metadata
-    });
+    }, { headers });
   } catch (error) {
     console.error('Error fetching form:', error);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), {
@@ -137,11 +143,13 @@ export async function GET(
 // Update a form
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
+  const { id } = await params;
+  
   try {
-    const { id } = params;
     const body = await request.json();
+    console.log(`[PATCH /api/forms/${id}] Received body:`, JSON.stringify(body, null, 2));
     
     if (!id) {
       return new NextResponse(JSON.stringify({ error: 'Form ID is required' }), {
@@ -149,8 +157,7 @@ export async function PATCH(
       });
     }
     
-    // Special case for new forms
-    if (id === 'new') {
+    if (id === 'new') { 
       const { banner, ...rest } = body;
       return NextResponse.json({
         id: 'new',
@@ -160,7 +167,6 @@ export async function PATCH(
       });
     }
     
-    // Get authenticated user
     const { userId: clerkUserId } = getAuth(request);
     if (!clerkUserId) {
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
@@ -168,49 +174,33 @@ export async function PATCH(
       });
     }
     
-    // Get database user ID
-    const userId = await getDbUserId(clerkUserId);
-    if (!userId) {
+    const databaseUserId = await getDbUserId(clerkUserId);
+    if (!databaseUserId) {
       return new NextResponse(JSON.stringify({ error: 'User not found' }), {
         status: 404,
       });
     }
     
-    // Verify user has access to this form
-    const hasAccess = await authService.verifyFormAccess(id, userId);
+    const hasAccess = await authService.verifyFormAccess(id, databaseUserId);
     if (!hasAccess) {
       return new NextResponse(JSON.stringify({ error: 'Unauthorized access to form' }), {
         status: 403,
       });
     }
     
-    // Extract fields from the body to store in schema
     const { fields, workspaceId, banner, ...formData } = body;
+    console.log(`[PATCH /api/forms/${id}] Extracted fields from body:`, JSON.stringify(fields, null, 2));
+    console.log(`[PATCH /api/forms/${id}] Remaining formData:`, JSON.stringify(formData, null, 2));
     
-    // Ensure fields are properly formatted for the database schema
     const schemaFields = prepareFieldsForAPI(fields || []);
+    console.log(`[PATCH /api/forms/${id}] Fields after prepareFieldsForAPI:`, JSON.stringify(schemaFields, null, 2));
     
-    // Create metadata to store with schema
-    const formMetadata = {
-      banner: banner || ''
-    };
+    const formMetadata = { banner: banner || '' };
+    const schemaObject = { fields: schemaFields, metadata: formMetadata };
+    console.log(`[PATCH /api/forms/${id}] Final schemaObject to be saved:`, JSON.stringify(schemaObject, null, 2));
     
-    // Create schema object with fields and metadata
-    const schemaObject = { 
-      fields: schemaFields,
-      metadata: formMetadata
-    };
-    
-    // Validate form data with Zod after mapping field types
     try {
-      // Create a sanitized payload for validation
-      const validationPayload = {
-        ...formData,
-        fields: schemaFields,
-        workspaceId: workspaceId || undefined,
-        banner: banner || undefined,
-      };
-      
+      const validationPayload = { ...formData, fields: schemaFields, workspaceId: workspaceId || undefined, banner: banner || undefined };
       formSchema.parse(validationPayload);
     } catch (validationError) {
       console.error('Form validation error:', validationError);
@@ -222,17 +212,12 @@ export async function PATCH(
       });
     }
     
-    // Update the form in the database
     const updatedForm = await prismadb.form.update({
       where: { id },
       data: {
         ...formData,
-        // Use user relation instead of userId field directly
-        user: {
-          connect: { id: userId }
-        },
-        schema: schemaObject, // Store fields and metadata in schema
-        // Handle workspace relationship correctly
+        user: { connect: { id: databaseUserId } },
+        schema: schemaObject,
         workspace: workspaceId 
           ? { connect: { id: workspaceId } }
           : workspaceId === null 
@@ -240,22 +225,21 @@ export async function PATCH(
             : undefined
       }
     });
+    console.log(`[PATCH /api/forms/${id}] Form updated in DB:`, JSON.stringify(updatedForm, null, 2));
     
-    // Extract data from the schema
     const savedSchema = updatedForm.schema ? JSON.parse(JSON.stringify(updatedForm.schema)) : {};
     const savedFields = savedSchema.fields || [];
     const savedMetadata = savedSchema.metadata || {};
     
-    // Convert schema back to UI field format for response
     const uiFields = prepareFieldsForUI(savedFields);
     
     return NextResponse.json({
       ...updatedForm,
       fields: uiFields,
-      banner: savedMetadata.banner || '' // Return banner from metadata
+      banner: savedMetadata.banner || ''
     });
   } catch (error) {
-    console.error('Error updating form:', error);
+    console.error(`[PATCH /api/forms/${id}] Error:`, error);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), {
       status: 500,
     });
@@ -265,10 +249,10 @@ export async function PATCH(
 // Delete a form
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
-    const { id } = params;
+    const { id } = await params;
     
     if (!id) {
       return new NextResponse(JSON.stringify({ error: 'Form ID is required' }), {

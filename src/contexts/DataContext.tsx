@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { useUser } from '@clerk/nextjs'
+import { useUser } from '@clerk/clerk-react'
 
 // Define types for the data we'll store in context
 interface FormItem {
@@ -11,6 +11,7 @@ interface FormItem {
   updatedAt: Date
   published: boolean
   workspaceId?: string
+  submissionCount?: number
 }
 
 interface WorkspaceItem {

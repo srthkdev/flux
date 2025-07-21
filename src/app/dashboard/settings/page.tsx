@@ -98,7 +98,7 @@ export default function SettingsPage() {
                       <Label htmlFor="email">Email Address</Label>
                       <Input 
                         id="email" 
-                        defaultValue={user?.primaryEmailAddress?.emailAddress || ""} 
+                        defaultValue={user?.emailAddresses[0].emailAddress || ""} 
                         readOnly
                       />
                     </div>

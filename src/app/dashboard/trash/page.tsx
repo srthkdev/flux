@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from "@clerk/nextjs"
 import { Undo, Trash2, AlertCircle, RotateCcw, Loader2, Search, MoreVertical } from 'lucide-react';
 
 import { workspaceService } from '@/lib/services/workspace-service';

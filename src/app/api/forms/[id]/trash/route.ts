@@ -7,10 +7,10 @@ export const dynamic = 'force-dynamic';
 // Move a form to trash
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
-    const { id } = params
+    const { id } = await params;
     
     if (!id) {
       return new NextResponse(JSON.stringify({ error: 'Form ID is required' }), {

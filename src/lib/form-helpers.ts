@@ -20,8 +20,9 @@ export const mapUIFieldTypeToSchema = (type: string): string => {
     case 'h1': return 'h1';
     case 'h2': return 'h2';
     case 'h3': return 'h3';
+    case 'ai': return 'ai';
     case 'time': return 'date'; // Map time to date as a fallback
-    case 'link': return 'shortText'; // Map link to shortText as a fallback
+    case 'link': return 'url'; // Map link to url
     default: return 'shortText'; // Default fallback
   }
 }
@@ -40,9 +41,11 @@ export const mapSchemaFieldTypeToUI = (type: string): string => {
     case 'checkbox': return 'checkbox';
     case 'radio': return 'multiple_choice';
     case 'fileUpload': return 'file';
+    case 'url': return 'link';
     case 'h1': return 'h1';
     case 'h2': return 'h2';
     case 'h3': return 'h3';
+    case 'ai': return 'ai';
     default: return 'text'; // Default fallback
   }
 }
@@ -51,14 +54,14 @@ export const mapSchemaFieldTypeToUI = (type: string): string => {
 const SCHEMA_FIELD_TYPES = [
   'shortText', 'longText', 'number', 'email', 'phone',
   'date', 'select', 'multiSelect', 'checkbox', 'radio',
-  'fileUpload', 'h1', 'h2', 'h3'
+  'fileUpload', 'url', 'h1', 'h2', 'h3', 'ai'
 ];
 
 // Valid UI field types
 const UI_FIELD_TYPES = [
   'text', 'long_answer', 'number', 'email', 'phone',
   'date', 'dropdown', 'multi_select', 'checkbox', 'multiple_choice',
-  'file', 'h1', 'h2', 'h3', 'time', 'link'
+  'file', 'h1', 'h2', 'h3', 'time', 'link', 'ai'
 ];
 
 // Convert fields for API submission

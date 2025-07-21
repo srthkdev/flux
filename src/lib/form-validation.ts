@@ -158,6 +158,9 @@ export function buildDynamicFormSchema(fields: any[]) {
     // Skip heading fields (h1, h2, h3) as they don't need validation
     if (['h1', 'h2', 'h3'].includes(field.type)) return;
     
+    // Skip AI fields as they are computed automatically and don't need user validation
+    if (field.type === 'ai' || field.is_ai_field) return;
+    
     switch (field.type) {
       case 'text':
       case 'shortText':
@@ -217,6 +220,7 @@ export function buildDynamicFormSchema(fields: any[]) {
         break;
         
       case 'link':
+      case 'url':
         schemaMap[field.id] = fieldValidators.url(field.required);
         break;
         

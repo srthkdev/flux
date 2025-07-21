@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Download, Loader2, FileText, Share } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, FileText, Share, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { DashboardHeader } from '@/components/dashboard-header'
+import { DashboardHeader } from "@/components/layout/header/dashboard-header"
 import {
   Table,
   TableBody,
@@ -30,6 +30,10 @@ interface FormField {
   id: string
   type: string
   label: string
+  // AI field properties
+  is_ai_field?: boolean
+  ai_metadata_prompt?: string
+  ai_computed_value?: string
 }
 
 interface FormResponse {
@@ -47,36 +51,51 @@ export default function FormResponsesPage() {
   const [form, setForm] = useState<FormData | null>(null)
   const [responses, setResponses] = useState<FormResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch form details
-        const formResponse = await fetch(`/api/forms/${formId}`)
-        if (!formResponse.ok) {
-          throw new Error('Failed to fetch form')
-        }
-        
-        const formData = await formResponse.json()
-        setForm(formData)
-        
-        // Fetch form responses
-        const responsesResponse = await fetch(`/api/forms/${formId}/responses`)
-        if (!responsesResponse.ok) {
-          throw new Error('Failed to fetch responses')
-        }
-        
-        const responsesData = await responsesResponse.json()
-        setResponses(responsesData)
-      } catch (error) {
-        console.error('Error fetching data:', error)
-      } finally {
+  const fetchData = async (isRefresh = false) => {
+    if (isRefresh) {
+      setIsRefreshing(true)
+    } else {
+      setIsLoading(true)
+    }
+    
+    try {
+      // Fetch form details
+      const formResponse = await fetch(`/api/forms/${formId}`)
+      if (!formResponse.ok) {
+        throw new Error('Failed to fetch form')
+      }
+      
+      const formData = await formResponse.json()
+      setForm(formData)
+      
+      // Fetch form responses
+      const responsesResponse = await fetch(`/api/forms/${formId}/responses`)
+      if (!responsesResponse.ok) {
+        throw new Error('Failed to fetch responses')
+      }
+      
+      const responsesData = await responsesResponse.json()
+      setResponses(responsesData)
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    } finally {
+      if (isRefresh) {
+        setIsRefreshing(false)
+      } else {
         setIsLoading(false)
       }
     }
-    
+  }
+  
+  useEffect(() => {
     fetchData()
   }, [formId])
+
+  const handleRefresh = () => {
+    fetchData(true)
+  }
   
   const handleDownloadCSV = () => {
     if (!form || !responses.length) return
@@ -155,14 +174,30 @@ export default function FormResponsesPage() {
   
   const formatResponseValue = (field: FormField, value: any) => {
     if (value === undefined || value === null) return '-'
+
+    // Special rendering for AI fields
+    if (field.type === 'ai' || field.is_ai_field) {
+      return (
+        <div className="flex items-center gap-2 px-2 py-1 bg-gradient-to-r from-purple-50 to-purple-50 border border-purple-200 rounded-md">
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 bg-gradient-to-r from-purple-500 to-purple-500 rounded-full flex items-center justify-center">
+              <span className="text-white text-xs font-bold">AI</span>
+            </div>
+            <span className="text-xs text-purple-700 font-medium truncate max-w-[100px]" title={String(value)}>
+              {String(value).length > 15 ? String(value).substring(0, 15) + '...' : String(value)}
+            </span>
+          </div>
+        </div>
+      );
+    }
     
     // Handle file uploads
     if (typeof value === 'object' && value !== null) {
       if (field.type === 'file' && value.fileName) {
         return (
           <div className="flex items-center">
-            <FileText className="h-4 w-4 mr-2 text-blue-500" />
-            <span className="text-xs text-blue-600 truncate max-w-[120px] inline-block">
+            <FileText className="h-4 w-4 mr-2 text-purple-500" />
+            <span className="text-xs text-purple-600 truncate max-w-[120px] inline-block">
               {value.fileName}
             </span>
           </div>
@@ -271,12 +306,23 @@ export default function FormResponsesPage() {
             {responses.length} {responses.length === 1 ? 'response' : 'responses'} received
           </p>
           
-          {responses.length > 0 && (
-            <Button onClick={handleDownloadCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              Download CSV
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleRefresh}
+              variant="outline"
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
-          )}
+            
+            {responses.length > 0 && (
+              <Button onClick={handleDownloadCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Download CSV
+              </Button>
+            )}
+          </div>
         </div>
         
         {responses.length === 0 ? (
@@ -296,7 +342,7 @@ export default function FormResponsesPage() {
               <Button 
                 onClick={() => {
                   // Open the share form modal
-                  router.push(`/dashboard/forms/${formId}/dashboard?share=true`);
+                  router.push(`/dashboard/forms/${formId}?share=true`);
                 }}
               >
                 <Share className="h-4 w-4 mr-2" />
@@ -316,7 +362,14 @@ export default function FormResponsesPage() {
                       .slice(0, 6)
                       .map((field) => (
                         <TableHead key={field.id} className="max-w-[150px]">
-                          <div className="truncate">{field.label}</div>
+                          <div className="truncate flex items-center gap-1">
+                            {field.label}
+                            {(field.type === 'ai' || field.is_ai_field) && (
+                              <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-purple-500 rounded-full flex items-center justify-center ml-1">
+                                <span className="text-white text-[8px] font-bold">AI</span>
+                              </div>
+                            )}
+                          </div>
                         </TableHead>
                       ))}
                     <TableHead className="text-right w-20">View</TableHead>

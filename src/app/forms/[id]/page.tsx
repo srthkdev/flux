@@ -44,6 +44,10 @@ interface FormField {
     min?: number
     max?: number
   }
+  // AI field properties
+  is_ai_field?: boolean
+  ai_metadata_prompt?: string
+  ai_computed_value?: string
 }
 
 export default function PublicFormPage() {
@@ -100,6 +104,39 @@ export default function PublicFormPage() {
         
         if (filePromises.length > 0) {
           await Promise.all(filePromises);
+        }
+        
+        // Compute AI field values
+        const aiFields = form.fields.filter(field => field.is_ai_field && field.ai_metadata_prompt);
+        for (const aiField of aiFields) {
+          try {
+            const response = await fetch('/api/compute-ai-field', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                ai_field_id: aiField.id,
+                ai_metadata_prompt: aiField.ai_metadata_prompt,
+                form_data: {
+                  form_fields: form.fields,
+                  field_data: formData
+                }
+              }),
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              formData[aiField.id] = result.computed_value;
+            } else {
+              console.error(`Failed to compute AI field ${aiField.id}:`, await response.text());
+              // Set a default value if AI computation fails
+              formData[aiField.id] = 'AI computation failed';
+            }
+          } catch (error) {
+            console.error(`Error computing AI field ${aiField.id}:`, error);
+            formData[aiField.id] = 'AI computation error';
+          }
         }
         
         console.log(`Submitting form to: /api/forms/${formId}/responses`);
@@ -181,11 +218,20 @@ export default function PublicFormPage() {
         // Initialize form values for fields that need it
         formData.fields.forEach((field: FormField) => {
           if (field.type === 'checkbox') {
-            setValue(field.id, false);
-            if (field.required) {
-              validationRules[field.id] = {
-                validate: (value: boolean) => value === true || 'This checkbox is required'
-              };
+            if (field.options && field.options.length > 0) {
+              setValue(field.id, []);
+              if (field.required) {
+                validationRules[field.id] = {
+                  validate: (value: string[]) => (Array.isArray(value) && value.length > 0) || 'Please select at least one option'
+                };
+              }
+            } else {
+              setValue(field.id, false);
+              if (field.required) {
+                validationRules[field.id] = {
+                  validate: (value: boolean) => value === true || 'This checkbox is required'
+                };
+              }
             }
           } else if (field.type === 'multiple_choice' || field.type === 'dropdown') {
             setValue(field.id, '');
@@ -299,7 +345,9 @@ export default function PublicFormPage() {
           </div>
           
           <form onSubmit={(e) => { e.preventDefault(); submitForm(); }} className="space-y-8">
-            {form.fields.map((field) => (
+            {form.fields
+              .filter(field => !field.is_ai_field) // Hide AI fields from users
+              .map((field) => (
               <div 
                 key={field.id} 
                 className="bg-white rounded-lg shadow-sm p-6"
@@ -448,7 +496,7 @@ export default function PublicFormPage() {
                       />
                     )}
                     
-                    {field.type === 'link' && (
+                    {(field.type === 'link' || field.type === 'url') && (
                       <Input
                         id={field.id}
                         type="url"
@@ -464,7 +512,34 @@ export default function PublicFormPage() {
                       />
                     )}
                     
-                    {field.type === 'checkbox' && (
+                    {field.type === 'checkbox' && field.options && field.options.length > 0 ? (
+                      <div className="space-y-2">
+                        {field.options.map((option, i) => (
+                          <div key={i} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`${field.id}-${i}`}
+                              checked={Array.isArray(formValues[field.id]) && formValues[field.id].includes(option)}
+                              onCheckedChange={(checked) => {
+                                const currentValues = Array.isArray(formValues[field.id]) ? [...formValues[field.id]] : [];
+                                if (checked) {
+                                  setValue(field.id, [...currentValues, option], { shouldValidate: field.required });
+                                } else {
+                                  setValue(field.id, currentValues.filter(val => val !== option), { shouldValidate: field.required });
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`${field.id}-${i}`} className="font-normal">
+                              {option}
+                            </Label>
+                          </div>
+                        ))}
+                        {field.required && errors[field.id] && (
+                          <p className="text-sm text-red-500 mt-1">
+                            Please select at least one option
+                          </p>
+                        )}
+                      </div>
+                    ) : field.type === 'checkbox' ? (
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id={field.id}
@@ -479,7 +554,7 @@ export default function PublicFormPage() {
                           {field.placeholder || "Yes"}
                         </Label>
                       </div>
-                    )}
+                    ) : null}
                     
                     {field.type === 'multiple_choice' && field.options && field.options.length > 0 && (
                       <RadioGroup

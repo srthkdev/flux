@@ -13,6 +13,8 @@ export type FieldType =
   | 'checkbox'
   | 'radio'
   | 'fileUpload'
+  | 'url'
+  | 'ai'
 
 export interface FormField {
   id: string

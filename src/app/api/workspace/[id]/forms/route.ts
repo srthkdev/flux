@@ -21,10 +21,10 @@ async function getDbUserId(clerkUserId: string | null): Promise<string | null> {
 // Get forms for a specific workspace
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
-    const { id } = params;
+    const { id } = await params;
     
     if (!id) {
       return new NextResponse(JSON.stringify({ error: 'Workspace ID is required' }), {
@@ -62,10 +62,28 @@ export async function GET(
         userId,
         isDeleted: false,
       },
+      include: {
+        _count: {
+          select: {
+            responses: true
+          }
+        }
+      },
       orderBy: { updatedAt: 'desc' },
     });
     
-    return NextResponse.json(forms);
+    // Transform the data to include submissionCount at the top level
+    const formsWithSubmissionCounts = forms.map(form => ({
+      ...form,
+      submissionCount: form._count.responses,
+      _count: undefined // Remove the _count object from the response
+    }));
+    
+    return NextResponse.json(formsWithSubmissionCounts, {
+      headers: {
+        'Cache-Control': 'public, max-age=10, stale-while-revalidate=60',
+      }
+    });
   } catch (error) {
     console.error('Error fetching workspace forms:', error);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), {
@@ -77,12 +95,12 @@ export async function GET(
 // Create a new form in a workspace
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
-    const { title, description } = body;
+    const { title, description, schema } = body;
     
     if (!id || !title) {
       return new NextResponse(JSON.stringify({ error: 'Missing required fields' }), {
@@ -120,6 +138,7 @@ export async function POST(
         description: description || '',
         userId,
         workspaceId: id,
+        schema: schema || [],
         isDeleted: false,
       }
     });

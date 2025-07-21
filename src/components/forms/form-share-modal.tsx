@@ -97,10 +97,11 @@ export function FormShareModal({
           <div className="flex items-center gap-2">
             <Switch
               checked={publishToggle}
+              
               onCheckedChange={handlePublishToggle}
               disabled={isLoading}
             />
-            <span className="text-sm">
+            <span className="text-sm ">
               {publishToggle ? 'Published' : 'Unpublished'}
             </span>
           </div>
@@ -114,11 +115,11 @@ export function FormShareModal({
         
         <div className="flex items-center space-x-2 mt-3">
           <input
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring "
             value={shareUrl}
             readOnly
           />
-          <Button size="sm" className="px-2 h-9" onClick={handleCopyLink}>
+          <Button size="sm" className="px-2 h-9 bg-purple-600 hover:bg-purple-700 text-white font-medium" onClick={handleCopyLink}>
             {isCopied ? (
               <Check className="h-4 w-4" />
             ) : (

@@ -169,7 +169,7 @@ export function ToasterProvider({
   children,
 }: {
   children: React.ReactNode
-}): JSX.Element {
+}): React.ReactElement {
   const [state, innerDispatch] = React.useReducer(reducer, {
     toasts: [],
   })

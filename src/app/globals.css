@@ -6,6 +6,9 @@
   .text-balance {
     text-wrap: balance;
   }
+  .custom-scrollbar {
+    @apply scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400;
+  }
 }
 
 @layer base {
@@ -16,7 +19,7 @@
     --card-foreground: 0 0% 7%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 7%;
-    --primary: 221 83% 53%;
+    --primary: 0 0% 7%;
     --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 7%;
@@ -28,7 +31,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 0 0% 90%;
     --input: 0 0% 90%;
-    --ring: 221 83% 53%;
+    --ring: 0 0% 7%;
     --radius: 0.5rem;
     --color-1: 0 100% 63%;
     --color-2: 270 100% 63%;
@@ -55,6 +58,25 @@
     --color-4: 195 100% 63%;
     --color-5: 90 100% 63%;
   }
+
+  /* Apply custom scrollbar to all scrollable elements by default */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
 }
 
 @layer components {
@@ -74,7 +96,7 @@
   }
 
   .sidebar-item.active {
-    background-color: #1d4ed8;
+    background-color: #111111;
     color: white;
   }
 
@@ -182,5 +204,14 @@
   100% {
     background-position: 200%;
     }
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
   }
 }

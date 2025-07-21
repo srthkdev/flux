@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client"
 
 import * as React from "react"
@@ -8,6 +9,7 @@ import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useData } from "@/contexts/DataContext"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -186,64 +188,22 @@ const Sidebar = React.forwardRef<
     const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
     const router = useRouter()
     const pathname = usePathname()
-    const [workspaces, setWorkspaces] = React.useState<Workspace[]>([])
-    const [forms, setForms] = React.useState<Form[]>([])
+    const { workspaces, forms, isLoading } = useData()
     const [expandedWorkspaces, setExpandedWorkspaces] = React.useState<Record<string, boolean>>({})
-    const [isLoading, setIsLoading] = React.useState(true)
 
     React.useEffect(() => {
-      const fetchData = async () => {
-        try {
-          // Fetch workspaces
-          const workspacesResponse = await fetch('/api/workspace')
-          if (!workspacesResponse.ok) {
-            throw new Error('Failed to fetch workspaces')
-          }
-          const workspacesData = await workspacesResponse.json()
-          setWorkspaces(workspacesData)
-
-          // Set first workspace as expanded by default
-          if (workspacesData.length > 0) {
-            setExpandedWorkspaces({ [workspacesData[0].id]: true })
-            
-            // Fetch forms for this workspace
-            const formsResponse = await fetch(`/api/workspace/${workspacesData[0].id}/forms`)
-            if (formsResponse.ok) {
-              const formsData = await formsResponse.json()
-              setForms(formsData)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to fetch sidebar data:', error)
-        } finally {
-          setIsLoading(false)
-        }
+      if (workspaces.length > 0 && Object.keys(expandedWorkspaces).length === 0) {
+        setExpandedWorkspaces({ [workspaces[0].id]: true })
       }
-
-      fetchData()
-    }, [])
+    }, [workspaces, expandedWorkspaces])
 
     const toggleWorkspace = async (workspaceId: string) => {
-      // Toggle expansion state
       const newExpandedState = {
         ...expandedWorkspaces,
         [workspaceId]: !expandedWorkspaces[workspaceId]
       }
       
       setExpandedWorkspaces(newExpandedState)
-      
-      // If expanding, fetch forms for this workspace
-      if (newExpandedState[workspaceId] && !forms.some(form => form.workspaceId === workspaceId)) {
-        try {
-          const response = await fetch(`/api/workspace/${workspaceId}/forms`)
-          if (response.ok) {
-            const formsData = await response.json()
-            setForms(prevForms => [...prevForms, ...formsData])
-          }
-        } catch (error) {
-          console.error('Failed to fetch forms for workspace:', error)
-        }
-      }
     }
 
     const handleCreateForm = (workspaceId: string) => {

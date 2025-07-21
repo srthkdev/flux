@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { SignIn } from "@clerk/nextjs";
 import { BorderBeam } from "@/components/magicui/border-beam";
 

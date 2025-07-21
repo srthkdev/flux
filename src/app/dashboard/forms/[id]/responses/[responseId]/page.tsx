@@ -6,7 +6,7 @@ import { ArrowLeft, Download, Loader2, FileText, Image, ExternalLink, File } fro
 import { Badge } from '@/components/ui/badge'
 
 import { Button } from '@/components/ui/button'
-import { DashboardHeader } from '@/components/dashboard-header'
+import { DashboardHeader } from "@/components/layout/header/dashboard-header"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
@@ -28,6 +28,10 @@ interface FormField {
   label: string
   required: boolean
   options?: string[]
+  // AI field properties
+  is_ai_field?: boolean
+  ai_metadata_prompt?: string
+  ai_computed_value?: string
 }
 
 interface FormResponse {
@@ -81,6 +85,25 @@ export default function SingleResponsePage() {
   const renderResponseValue = (field: FormField, value: any) => {
     if (value === undefined || value === null) {
       return <span className="text-muted-foreground">No response</span>
+    }
+
+    // Special rendering for AI fields
+    if (field.type === 'ai' || field.is_ai_field) {
+      return (
+        <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-purple-50 border border-purple-200 rounded-lg">
+          <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-sm font-bold">AI</span>
+          </div>
+          <div className="flex-1">
+            <div className="text-purple-700 font-medium">{String(value)}</div>
+            {field.ai_metadata_prompt && (
+              <div className="text-xs text-purple-600 mt-1 opacity-75">
+                Prompt: {field.ai_metadata_prompt}
+              </div>
+            )}
+          </div>
+        </div>
+      );
     }
     
     if (typeof value === 'object' && value !== null) {
@@ -201,6 +224,7 @@ export default function SingleResponsePage() {
       case 'date':
         return new Date(value).toLocaleDateString()
       case 'link':
+      case 'url':
         return (
           <a 
             href={value} 
@@ -278,7 +302,14 @@ export default function SingleResponsePage() {
             <div className="space-y-6">
               {form.fields.map((field) => (
                 <div key={field.id} className="space-y-2">
-                  <Label className="text-base font-semibold">{field.label}</Label>
+                  <Label className="text-base font-semibold flex items-center gap-2">
+                    {field.label}
+                    {(field.type === 'ai' || field.is_ai_field) && (
+                      <div className="w-4 h-4 bg-gradient-to-r from-purple-500 to-purple-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">AI</span>
+                      </div>
+                    )}
+                  </Label>
                   <div className="p-3 bg-gray-50 rounded-md">
                     {renderResponseValue(field, response.data[field.id])}
                   </div>

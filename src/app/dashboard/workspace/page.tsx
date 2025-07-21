@@ -3,12 +3,13 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, MoreHorizontal, Search } from 'lucide-react'
-import { useUser } from '@clerk/nextjs'
+import { useUser } from '@clerk/clerk-react'
 import { toast } from '@/hooks/use-toast'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { DashboardHeader } from '@/components/dashboard-header'
+import { DashboardHeader } from "@/components/layout/header/dashboard-header"
+import { WorkspaceModal } from "@/components/features/workspace/workspace-modal"
 
 interface WorkspaceItem {
   id: string
@@ -25,49 +26,50 @@ export default function WorkspacesPage() {
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false)
 
-  useEffect(() => {
-    const fetchWorkspaces = async () => {
-      if (!isLoaded || !user) return
+  const fetchWorkspaces = async () => {
+    if (!isLoaded || !user) return
 
-      setIsLoading(true)
+    setIsLoading(true)
 
-      try {
-        // Fetch workspaces
-        const workspacesResponse = await fetch(`/api/workspace`)
-        if (!workspacesResponse.ok) {
-          throw new Error("Failed to fetch workspaces")
-        }
+    try {
+      // Fetch workspaces
+      const workspacesResponse = await fetch(`/api/workspace`)
+      if (!workspacesResponse.ok) {
+        throw new Error("Failed to fetch workspaces")
+      }
 
-        const workspacesData = await workspacesResponse.json()
+      const workspacesData = await workspacesResponse.json()
 
-        // Get form counts for each workspace
-        const workspacesWithFormCounts = await Promise.all(
-          workspacesData.map(async (workspace: any) => {
-            const formsResponse = await fetch(`/api/workspace/${workspace.id}/forms`)
-            if (!formsResponse.ok) {
-              return {
-                ...workspace,
-                formCount: 0
-              }
-            }
-
-            const forms = await formsResponse.json()
+      // Get form counts for each workspace
+      const workspacesWithFormCounts = await Promise.all(
+        workspacesData.map(async (workspace: any) => {
+          const formsResponse = await fetch(`/api/workspace/${workspace.id}/forms`)
+          if (!formsResponse.ok) {
             return {
               ...workspace,
-              formCount: forms.length
+              formCount: 0
             }
-          })
-        )
+          }
 
-        setWorkspaces(workspacesWithFormCounts)
-      } catch (error) {
-        console.error("Error fetching workspaces:", error)
-      } finally {
-        setIsLoading(false)
-      }
+          const forms = await formsResponse.json()
+          return {
+            ...workspace,
+            formCount: forms.length
+          }
+        })
+      )
+
+      setWorkspaces(workspacesWithFormCounts)
+    } catch (error) {
+      console.error("Error fetching workspaces:", error)
+    } finally {
+      setIsLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchWorkspaces()
   }, [user, isLoaded])
 
@@ -76,6 +78,15 @@ export default function WorkspacesPage() {
     : workspaces.filter(workspace =>
         workspace.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
+
+  const handleCreateWorkspace = () => {
+    setIsWorkspaceModalOpen(true)
+  }
+
+  const handleWorkspaceCreateSuccess = () => {
+    // Refresh workspaces after creation
+    fetchWorkspaces()
+  }
 
   return (
     <>
@@ -87,12 +98,12 @@ export default function WorkspacesPage() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-medium">My workspaces</h1>
 
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700"
-              onClick={() => router.push('/dashboard/workspace/new')}
+            <Button
+              onClick={handleCreateWorkspace}
+              variant="purple"
             >
               <Plus className="h-4 w-4 mr-2" />
-              New workspace
+              Create Workspace
             </Button>
           </div>
 
@@ -129,12 +140,12 @@ export default function WorkspacesPage() {
                 ) : (
                   <>
                     <p className="text-gray-500 mb-4">No workspaces yet. Create your first workspace to get started.</p>
-                    <Button 
-                      onClick={() => router.push('/dashboard/workspace/new')}
-                      className="bg-blue-600 hover:bg-blue-700"
+                    <Button
+                      onClick={handleCreateWorkspace}
+                      variant="purple"
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      New workspace
+                      Create your first workspace
                     </Button>
                   </>
                 )}
@@ -143,6 +154,13 @@ export default function WorkspacesPage() {
           </div>
         </div>
       </div>
+
+      {/* Workspace Modal */}
+      <WorkspaceModal 
+        isOpen={isWorkspaceModalOpen}
+        onOpenChange={setIsWorkspaceModalOpen}
+        onSuccess={handleWorkspaceCreateSuccess}
+      />
     </>
   )
 } 

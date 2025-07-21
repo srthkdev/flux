@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client"
 
+import * as React from 'react'
 import { useEffect, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { 
@@ -14,11 +16,17 @@ import {
   AlertCircle,
   CheckCircle,
   Copy,
-  Eye
+  Eye,
+  BarChart2,
+  Inbox,
+  MessageSquare,
+  TestTube,
+  ArrowLeft
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { useUser } from "@clerk/nextjs"
 import Link from "next/link"
+import { faker } from '@faker-js/faker'
 import {
   Dialog,
   DialogContent,
@@ -56,8 +64,9 @@ import {
 } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FormattedDate } from "@/components/ui/formatted-date"
-import { DashboardHeader } from "@/components/dashboard-header"
+import { DashboardHeader } from "@/components/layout/header/dashboard-header"
 import { useData } from "@/contexts/DataContext"
+import { ChatThreadManager } from "@/components/chat/ChatThreadManager"
 
 interface FormSubmission {
   id: string
@@ -90,6 +99,20 @@ interface FormField {
   options?: string[]
   fileSize?: number
   fileTypes?: string[]
+  // AI field properties
+  is_ai_field?: boolean
+  ai_metadata_prompt?: string
+  ai_computed_value?: string
+}
+
+// Compact summary card component
+function SummaryCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-lg bg-card/50 p-3 flex justify-between items-center">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-lg font-semibold text-foreground">{value}</div>
+    </div>
+  )
 }
 
 export default function FormDashboardPage() {
@@ -109,6 +132,7 @@ export default function FormDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [copying, setCopying] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [generatingTestData, setGeneratingTestData] = useState(false)
   
   useEffect(() => {
     const fetchFormData = async () => {
@@ -217,123 +241,563 @@ export default function FormDashboardPage() {
     }
   }
 
-  const renderSubmissionValue = (value: any, fieldType: string) => {
+  const renderSubmissionValue = (value: any, field: FormField, isModal: boolean = false) => {
     if (value === undefined || value === null) {
-      return <span className="text-muted-foreground">-</span>
+      return (
+        <div className="flex items-center gap-2 text-gray-400">
+          <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
+          <span className="text-sm">No response</span>
+        </div>
+      )
+    }
+
+    // Special rendering for AI fields
+    if (field.type === 'ai' || field.is_ai_field) {
+      return (
+        <div className="bg-gradient-to-r from-purple-50 to-purple-50 border border-purple-200 rounded-lg p-3">
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-purple-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="text-white text-xs font-bold">AI</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-purple-900 leading-relaxed">
+                {String(value)}
+              </p>
+              <div className="flex items-center gap-1 mt-2">
+                <div className="w-1 h-1 bg-purple-400 rounded-full"></div>
+                <span className="text-xs text-purple-600">AI Generated</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
     }
     
     // Handle objects (like files)
     if (typeof value === 'object' && value !== null) {
-      if (fieldType === 'file' && value.fileName) {
+      if (field.type === 'file' && value.fileName) {
         return (
-          <div className="flex items-center">
-            <FileText className="h-4 w-4 mr-2 text-blue-500" />
-            <a 
-              href="#" 
-              onClick={(e) => {
-                e.preventDefault();
-                // Open file in new tab if it's viewable, otherwise download
-                const isPdf = value.fileType === 'application/pdf' || value.extension === 'pdf';
-                const isImage = value.fileType?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(value.extension);
-                
-                if (value.content && (isPdf || isImage)) {
-                  const dataUrl = `data:${value.fileType};base64,${value.content}`;
-                  window.open(dataUrl, '_blank');
-                } else if (value.content) {
-                  const link = document.createElement('a');
-                  link.href = `data:${value.fileType};base64,${value.content}`;
-                  link.download = value.fileName;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                }
-              }}
-              className="text-sm text-blue-600 hover:underline truncate max-w-[150px] inline-block"
-            >
-              {value.fileName}
-            </a>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <FileText className="h-4 w-4 text-blue-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-blue-900 truncate">
+                  {value.fileName}
+                </p>
+                <p className="text-xs text-blue-600">
+                  {(value.fileSize / 1024).toFixed(1)} KB
+                </p>
+              </div>
+            </div>
           </div>
         );
       }
       
       // Handle multi-select
-      if ((fieldType === 'multi_select' || fieldType === 'multiSelect') && Array.isArray(value)) {
-        if (value.length === 0) return <span className="text-muted-foreground">-</span>;
-        if (value.length === 1) return value[0];
+      if ((field.type === 'multi_select' || field.type === 'multiSelect') && Array.isArray(value)) {
+        if (value.length === 0) return (
+          <div className="flex items-center gap-2 text-gray-400">
+            <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
+            <span className="text-sm">No selection</span>
+          </div>
+        );
+        
         return (
-          <span className="text-sm">
-            {value[0]} <span className="text-xs text-muted-foreground">+{value.length - 1} more</span>
-          </span>
+          <div className="space-y-1">
+            {value.slice(0, 2).map((item, index) => (
+              <div key={index} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-xs mr-1">
+                {item}
+              </div>
+            ))}
+            {value.length > 2 && (
+              <div className="inline-flex items-center gap-1 bg-gray-200 text-gray-600 px-2 py-1 rounded-md text-xs">
+                +{value.length - 2} more
+              </div>
+            )}
+          </div>
         );
       }
       
       // For checkbox data stored as object with boolean values
-      if (fieldType === 'checkbox' && !Array.isArray(value)) {
+      if (field.type === 'checkbox' && !Array.isArray(value)) {
         const selected = Object.entries(value)
           .filter(([_, selected]) => selected === true)
           .map(([option]) => option);
         
-        if (selected.length === 0) return <span className="text-muted-foreground">-</span>;
-        if (selected.length === 1) return selected[0];
+        if (selected.length === 0) return (
+          <div className="flex items-center gap-2 text-gray-400">
+            <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
+            <span className="text-sm">None selected</span>
+          </div>
+        );
+        
         return (
-          <span className="text-sm">
-            {selected[0]} <span className="text-xs text-muted-foreground">+{selected.length - 1} more</span>
-          </span>
+          <div className="space-y-1">
+            {selected.slice(0, 2).map((item, index) => (
+              <div key={index} className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-md text-xs mr-1">
+                ✓ {item}
+              </div>
+            ))}
+            {selected.length > 2 && (
+              <div className="inline-flex items-center gap-1 bg-gray-200 text-gray-600 px-2 py-1 rounded-md text-xs">
+                +{selected.length - 2} more
+              </div>
+            )}
+          </div>
         );
       }
       
       // If it's some other object type, stringify it
       try {
         const str = JSON.stringify(value);
-        return <span className="text-sm text-muted-foreground truncate max-w-[150px] inline-block">
-          {str.length > 25 ? str.substring(0, 25) + '...' : str}
-        </span>;
+        return (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
+            <code className="text-xs text-gray-600 font-mono">
+              {str.length > 50 ? str.substring(0, 50) + '...' : str}
+            </code>
+          </div>
+        );
       } catch (e) {
-        return <span className="text-sm text-muted-foreground">[Complex Data]</span>;
+        return (
+          <div className="flex items-center gap-2 text-gray-400">
+            <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
+            <span className="text-sm">Complex data</span>
+          </div>
+        );
       }
     }
     
     // Handle simple types
-    if (fieldType === 'checkbox') {
-      return value ? <span className="text-green-600">✓</span> : <span className="text-muted-foreground">-</span>;
+    if (field.type === 'checkbox') {
+      return value ? (
+        <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+          <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+          Yes
+        </div>
+      ) : (
+        <div className="inline-flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm">
+          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full"></div>
+          No
+        </div>
+      );
     }
     
     // Handle dates
-    if (fieldType === 'date' && value) {
+    if (field.type === 'date' && value) {
       try {
-        return <FormattedDate date={value} format="short" />;
+        return (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <div className="text-sm font-medium text-blue-900">
+              <FormattedDate date={value} format="short" />
+            </div>
+            <div className="text-xs text-blue-600">Date response</div>
+          </div>
+        );
       } catch (e) {
-        return String(value);
+        return (
+          <div className="text-sm text-gray-900 font-medium">
+            {String(value)}
+          </div>
+        );
       }
     }
     
-    // Truncate long text
-    if ((fieldType === 'text' || fieldType === 'long_answer') && typeof value === 'string' && value.length > 30) {
-      return <span className="truncate max-w-[150px] inline-block" title={value}>
-        {value.substring(0, 30)}...
-      </span>;
+    // Handle long text
+    if ((field.type === 'text' || field.type === 'long_answer') && typeof value === 'string') {
+      if (value.length > 100) {
+        return (
+          <div className="space-y-2">
+            <p className="text-sm text-gray-900 leading-relaxed">
+              {value.substring(0, 100)}...
+            </p>
+            <div className="text-xs text-gray-500">
+              {value.length} characters
+            </div>
+          </div>
+        );
+      }
+      return (
+        <p className="text-sm text-gray-900 leading-relaxed">
+          {value}
+        </p>
+      );
     }
     
-    return String(value);
+    // Handle numbers
+    if (field.type === 'number' && typeof value === 'number') {
+      return (
+        <div className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+          <div className="text-lg font-bold text-orange-900">
+            {value}
+          </div>
+          <div className="text-xs text-orange-600">
+            Number
+          </div>
+        </div>
+      );
+    }
+    
+    // Handle URLs
+    if ((field.type === 'link' || field.type === 'url') && typeof value === 'string') {
+      return (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          <a 
+            href={value} 
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline text-sm font-medium break-all"
+            title={value}
+          >
+            {value.length > 50 ? value.substring(0, 50) + '...' : value}
+          </a>
+          <div className="text-xs text-blue-600 mt-1">URL</div>
+        </div>
+      );
+    }
+    
+    // Default case
+    return (
+      <div className="text-sm text-gray-900 font-medium">
+        {String(value)}
+      </div>
+    );
+  };
+
+  const renderSubmissionValueLinear = (value: any, field: FormField) => {
+    if (value === undefined || value === null) {
+      return (
+        <span className="text-gray-400 text-sm">—</span>
+      )
+    }
+
+    // Special rendering for AI fields - Linear style
+    if (field.type === 'ai' || field.is_ai_field) {
+      return (
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-4 h-4 bg-gradient-to-r from-purple-500 to-purple-500 rounded-sm flex items-center justify-center flex-shrink0">
+            <span className="text-white text-[10px] font-bold">AI</span>
+          </div>
+          <span className="text-sm text-gray-900 font-medium truncate" title={String(value)}>
+            {String(value)}
+          </span>
+        </div>
+      );
+    }
+    
+    // Handle objects (like files)
+    if (typeof value === 'object' && value !== null) {
+      if (field.type === 'file' && value.fileName) {
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <span className="text-sm text-gray-900 truncate" title={value.fileName}>
+              {value.fileName}
+            </span>
+          </div>
+        );
+      }
+      
+      // Handle multi-select - Linear style
+      if ((field.type === 'multi_select' || field.type === 'multiSelect') && Array.isArray(value)) {
+        if (value.length === 0) return <span className="text-gray-400 text-sm">—</span>;
+        
+        return (
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-sm text-gray-900 truncate">
+              {value.slice(0, 2).join(', ')}
+            </span>
+            {value.length > 2 && (
+              <span className="text-xs text-gray-500 flex-shrink-0">
+                +{value.length - 2}
+              </span>
+            )}
+          </div>
+        );
+      }
+      
+      // For checkbox data stored as object with boolean values
+      if (field.type === 'checkbox' && !Array.isArray(value)) {
+        const selected = Object.entries(value)
+          .filter(([_, selected]) => selected === true)
+          .map(([option]) => option);
+        
+        if (selected.length === 0) return <span className="text-gray-400 text-sm">—</span>;
+        
+        return (
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-sm text-gray-900 truncate">
+              {selected.slice(0, 2).join(', ')}
+            </span>
+            {selected.length > 2 && (
+              <span className="text-xs text-gray-500 flex-shrink-0">
+                +{selected.length - 2}
+              </span>
+            )}
+          </div>
+        );
+      }
+      
+      // If it's some other object type, stringify it
+      try {
+        const str = JSON.stringify(value);
+        return (
+          <span className="text-sm text-gray-600 font-mono truncate" title={str}>
+            {str.length > 30 ? str.substring(0, 30) + '...' : str}
+          </span>
+        );
+      } catch (e) {
+        return <span className="text-gray-400 text-sm">Complex data</span>;
+      }
+    }
+    
+    // Handle simple types
+    if (field.type === 'checkbox') {
+      return (
+        <div className="flex items-center gap-2">
+          <div className={`w-3 h-3 rounded-sm border flex items-center justify-center ${
+            value 
+              ? 'bg-blue-500 border-blue-500' 
+              : 'border-gray-300'
+          }`}>
+            {value && <div className="w-1.5 h-1.5 bg-white rounded-sm"></div>}
+          </div>
+          <span className="text-sm text-gray-900">
+            {value ? 'Yes' : 'No'}
+          </span>
+        </div>
+      );
+    }
+    
+    // Handle dates
+    if (field.type === 'date' && value) {
+      try {
+        return (
+          <span className="text-sm text-gray-900">
+            <FormattedDate date={value} format="short" />
+          </span>
+        );
+      } catch (e) {
+        return (
+          <span className="text-sm text-gray-900">
+            {String(value)}
+          </span>
+        );
+      }
+    }
+    
+    // Handle numbers
+    if (field.type === 'number' && typeof value === 'number') {
+      return (
+        <span className="text-sm font-medium text-gray-900">
+          {value.toLocaleString()}
+        </span>
+      );
+    }
+    
+    // Handle long text
+    if ((field.type === 'text' || field.type === 'long_answer') && typeof value === 'string') {
+      return (
+        <span className="text-sm text-gray-900 truncate" title={value}>
+          {value.length > 50 ? value.substring(0, 50) + '...' : value}
+        </span>
+      );
+    }
+    
+    // Handle URLs
+    if ((field.type === 'link' || field.type === 'url') && typeof value === 'string') {
+      return (
+        <a 
+          href={value} 
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:underline text-sm truncate"
+          title={value}
+        >
+          {value.length > 30 ? value.substring(0, 30) + '...' : value}
+        </a>
+      );
+    }
+    
+    // Default case
+    return (
+      <span className="text-sm text-gray-900 truncate" title={String(value)}>
+        {String(value)}
+      </span>
+    );
   };
 
   const copyLink = () => {
-    if (typeof window !== "undefined") {
-      const link = window.location.origin + "/forms/" + form?.id;
-      navigator.clipboard.writeText(link).then(() => {
-        setCopied(true);
-        setCopying(false);
-        toast({
-          title: "Link copied to clipboard",
-          description: "You can now share this link with others"
-        });
-      }).catch((e) => {
-        console.error("Failed to copy link: ", e);
-        toast({
-          title: "Failed to copy link",
-          description: "There was an error copying the link"
-        });
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/forms/${form?.id}`;
+    navigator.clipboard.writeText(url);
+    
+    setCopying(true);
+    setTimeout(() => {
+      setCopying(false);
+      setCopied(true);
+      
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    }, 500);
+  }
+
+  const generateTestData = async () => {
+    if (!form) return;
+
+    try {
+      setGeneratingTestData(true);
+      toast({
+        title: "Generating test data...",
+        description: "Creating 50 fake form submissions",
       });
+
+      const submissions = [];
+
+      for (let i = 0; i < 50; i++) {
+        const formData: Record<string, any> = {};
+
+        // Generate fake data for each field
+        form.fields.forEach((field: FormField) => {
+          // Skip header fields and AI fields as they don't need user input
+          if (['h1', 'h2', 'h3'].includes(field.type) || field.type === 'ai' || field.is_ai_field) {
+            return;
+          }
+
+          switch (field.type) {
+            case 'text':
+            case 'shortText':
+              formData[field.id] = faker.person.fullName();
+              break;
+            
+            case 'long_answer':
+            case 'longText':
+              formData[field.id] = faker.lorem.paragraphs(2);
+              break;
+            
+            case 'email':
+              formData[field.id] = faker.internet.email();
+              break;
+            
+            case 'phone':
+              formData[field.id] = faker.phone.number();
+              break;
+            
+            case 'number':
+              formData[field.id] = faker.number.int({ min: 1, max: 100 });
+              break;
+            
+            case 'date':
+              // Generate dates within the last 30 days
+              formData[field.id] = faker.date.recent({ days: 30 }).toISOString().split('T')[0];
+              break;
+            
+            case 'checkbox':
+              if (field.options && field.options.length > 0) {
+                // Select 1-3 random options
+                const numSelections = faker.number.int({ min: 1, max: Math.min(3, field.options.length) });
+                formData[field.id] = faker.helpers.arrayElements(field.options, numSelections);
+              } else {
+                formData[field.id] = faker.datatype.boolean();
+              }
+              break;
+            
+            case 'multiple_choice':
+            case 'radio':
+            case 'dropdown':
+            case 'select':
+              if (field.options && field.options.length > 0) {
+                formData[field.id] = faker.helpers.arrayElement(field.options);
+              }
+              break;
+            
+            case 'multi_select':
+            case 'multiSelect':
+              if (field.options && field.options.length > 0) {
+                // Select 1-3 random options
+                const numSelections = faker.number.int({ min: 1, max: Math.min(3, field.options.length) });
+                formData[field.id] = faker.helpers.arrayElements(field.options, numSelections);
+              }
+              break;
+            
+            case 'file':
+            case 'fileUpload':
+              // Generate fake file data
+              formData[field.id] = {
+                fileName: faker.system.fileName(),
+                fileType: 'application/pdf',
+                fileSize: faker.number.int({ min: 1000, max: 5000000 }),
+                content: `data:application/pdf;base64,${faker.string.alphanumeric(100)}`,
+                mimeType: 'application/pdf',
+                extension: 'pdf'
+              };
+              break;
+            
+            case 'link':
+            case 'url':
+              formData[field.id] = faker.internet.url();
+              break;
+            
+            default:
+              formData[field.id] = faker.lorem.words(3);
+          }
+        });
+
+        submissions.push(formData);
+      }
+
+      // Submit all the test data in smaller batches to avoid overwhelming the server
+      const batchSize = 10;
+      for (let i = 0; i < submissions.length; i += batchSize) {
+        const batch = submissions.slice(i, i + batchSize);
+        
+        const promises = batch.map(async (submissionData) => {
+          const response = await fetch(`/api/forms/${formId}/responses`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(submissionData),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to submit test data: ${response.statusText}`);
+          }
+
+          return response.json();
+        });
+
+        await Promise.all(promises);
+        
+        // Update progress
+        toast({
+          title: "Progress...",
+          description: `Generated ${Math.min(i + batchSize, submissions.length)} of ${submissions.length} submissions`,
+        });
+      }
+
+      // Refresh the submissions list
+      const responsesResponse = await fetch(`/api/forms/${formId}/responses`);
+      if (responsesResponse.ok) {
+        const responsesData = await responsesResponse.json();
+        setSubmissions(responsesData);
+      }
+
+      toast({
+        title: "Test data generated!",
+        description: "Successfully created 50 fake form submissions",
+      });
+
+    } catch (error) {
+      console.error('Error generating test data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate test data. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingTestData(false);
     }
   }
 
@@ -345,19 +809,49 @@ export default function FormDashboardPage() {
     )
   }
 
+  console.log('form.fields:', form?.fields);
+
+  const renderedFields = form.fields.filter((field: FormField) => !['h1', 'h2', 'h3'].includes(field.type));
+  console.log('Table column header fields:', renderedFields);
+
   return (
     <>
-      <DashboardHeader
-        workspaceId={form.workspaceId}
-        workspaceName={form.workspace?.name || "My Workspace"}
-        formId={form.id}
-        formName={form.title}
-        breadcrumbs={[
-          { label: form.workspace?.name || "My Workspace", href: `/dashboard/workspace/${form.workspaceId || ''}` },
-          { label: form.title, href: `/dashboard/forms/${form.id}` },
-          { label: "Dashboard", href: `/dashboard/forms/${form.id}/dashboard` }
-        ]}
-      />
+      {form && (
+        <DashboardHeader
+          workspaceId={form.workspaceId}
+          workspaceName={form.workspace?.name || "My Workspace"}
+          formId={form.id}
+          formName={form.title}
+          breadcrumbs={[
+            { label: form.workspace?.name || "My Workspace", href: `/dashboard/workspace/${form.workspaceId || ''}` },
+            { label: form.title, href: `/dashboard/forms/${form.id}` }
+          ]}
+        />
+      )}
+      
+      {form && (
+        <div className="container py-3 flex justify-end">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleShareForm}
+              className="border-gray-200/60"
+              size="sm"
+            >
+              <Share className="h-4 w-4 mr-2" />
+              Share
+            </Button>
+            <Button 
+              size="sm"
+              onClick={handleEditForm}
+              className="text-white"
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Form
+            </Button>
+          </div>
+        </div>
+      )}
       
       <div className="container py-6">
         <div className="mb-6 flex items-center justify-between">
@@ -386,6 +880,11 @@ export default function FormDashboardPage() {
                   Settings
                 </DropdownMenuItem>
 
+                <DropdownMenuItem onClick={generateTestData} disabled={generatingTestData}>
+                  <TestTube className="mr-2 h-4 w-4" />
+                  Generate Test Data
+                </DropdownMenuItem>
+
                 <DropdownMenuItem onClick={handleDeleteForm} className="text-destructive">
                   <Trash className="mr-2 h-4 w-4" />
                   Delete form
@@ -396,119 +895,172 @@ export default function FormDashboardPage() {
         </div>
         
         <Tabs defaultValue="summary" className="w-full">
-          <TabsList className="mb-4">
-            <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="submissions">Submissions</TabsTrigger>
-            
+          <TabsList className="mb-6">
+            <TabsTrigger value="summary" className="flex items-center gap-1">
+              <BarChart2 className="h-4 w-4" /> Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="submissions" className="flex items-center gap-1">
+              <Inbox className="h-4 w-4" /> Submissions
+            </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="summary" className="space-y-4">
-            <div className="rounded-lg border bg-card p-6">
-              <h2 className="text-xl font-semibold mb-4">Form Summary</h2>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-md border p-4">
-                  <div className="text-sm font-medium text-muted-foreground">Total submissions</div>
-                  <div className="text-2xl font-bold">{submissions.length}</div>
-                </div>
-                <div className="rounded-md border p-4">
-                  <div className="text-sm font-medium text-muted-foreground">Form fields</div>
-                  <div className="text-2xl font-bold">{form.fields.length}</div>
-                </div>
-                <div className="rounded-md border p-4">
-                  <div className="text-sm font-medium text-muted-foreground">Status</div>
-                  <div className="text-2xl font-bold">{form.published ? "Published" : "Draft"}</div>
+          <TabsContent value="summary" className="space-y-6">
+            {/* Grid container */}
+            <div className="grid gap-6 lg:grid-cols-[1fr_250px]">
+              {/* Chat */}
+              <div className="flex flex-col rounded-xl bg-background shadow-sm min-h-[320px] h-full">
+                <div className="px-5 py-3 border-b text-sm font-medium text-muted-foreground">Chat with your data</div>
+                <ChatThreadManager formId={formId} className="flex-1" />
+              </div>
+              
+              {/* Stats */}
+              <div>
+                <h2 className="text-sm font-medium text-muted-foreground mb-3">FORM SNAPSHOT</h2>
+                <div className="space-y-2">
+                  <SummaryCard label="Submissions" value={submissions.length} />
+                  <SummaryCard label="Fields" value={form.fields.length} />
+                  <SummaryCard label="Status" value={form.published ? 'Published' : 'Draft'} />
                 </div>
               </div>
             </div>
           </TabsContent>
           
-          <TabsContent value="submissions" className="space-y-4">
-            <div className="rounded-lg border bg-card">
-              {submissions.length > 0 ? (
-                <div className="relative w-full overflow-auto max-h-[500px]">
-                  <table className="w-full caption-bottom text-sm">
-                    <thead className="[&_tr]:border-b sticky top-0 bg-white">
-                      <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                        <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">Submitted</th>
-                        {form.fields.filter(field => 
-                          !['h1', 'h2', 'h3'].includes(field.type)
-                        ).slice(0, 5).map(field => (
-                          <th key={field.id} className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">
-                            <div className="truncate w-32">{field.label}</div>
-                          </th>
-                        ))}
-                        <th className="h-10 px-2 text-right align-middle font-medium text-muted-foreground">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="[&_tr:last-child]:border-0">
-                      {submissions.map((submission) => (
-                        <tr 
-                          key={submission.id} 
-                          className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer"
-                          onClick={() => router.push(`/dashboard/forms/${formId}/responses/${submission.id}`)}
-                        >
-                          <td className="p-2 align-middle whitespace-nowrap">
-                            <FormattedDate date={submission.createdAt} format="short" />
-                          </td>
-                          {form.fields.filter(field => 
-                            !['h1', 'h2', 'h3'].includes(field.type)
-                          ).slice(0, 5).map(field => (
-                            <td key={field.id} className="p-2 align-middle w-32">
-                              <div className="max-w-[150px] truncate">
-                                {renderSubmissionValue(submission.data[field.id], field.type)}
-                              </div>
-                            </td>
-                          ))}
-                          <td className="p-2 align-middle text-right">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation();
-                                router.push(`/dashboard/forms/${formId}/responses/${submission.id}`);
-                              }}
-                            >
-                              <FileText className="mr-2 h-4 w-4" />
-                              View
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  
-                  {submissions.length > 5 && (
-                    <div className="flex justify-end p-2 bg-white border-t">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => router.push(`/dashboard/forms/${formId}/responses`)}
-                      >
-                        View all responses
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-xl font-medium mb-2">No responses yet</h3>
-                  <p className="text-muted-foreground text-center max-w-md mb-6">
-                    Share your form to start collecting responses. They will appear here once people start responding.
-                  </p>
-                  <Button 
-                    variant="outline"
-                    onClick={handleShareForm}
-                  >
-                    <Share className="mr-2 h-4 w-4" />
-                    Share your form
+          <TabsContent value="submissions" className="space-y-8">
+            {/* Header Section - Linear Style */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-semibold tracking-tight text-gray-900">Submissions</h2>
+                <p className="text-sm text-gray-600">
+                  {submissions.length} {submissions.length === 1 ? 'response' : 'responses'}
+                </p>
+              </div>
+              {submissions.length > 0 && (
+                <div className="flex items-center gap-3">
+                  <Button variant="ghost" size="sm" className="h-8 px-3 text-gray-600 hover:text-gray-900">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 px-3 text-gray-600 hover:text-gray-900">
+                    <Settings className="h-4 w-4 mr-2" />
+                    Filter
                   </Button>
                 </div>
               )}
             </div>
+
+            {submissions.length > 0 ? (
+              <div className="space-y-0">
+                {/* Table Header - Notion Style */}
+                <div className="grid grid-cols-[auto_1fr_auto] gap-6 px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                  <div className="w-12"></div>
+                  <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${renderedFields.length}, minmax(200px, 1fr))` }}>
+                    {renderedFields.map((field: FormField) => (
+                      <div key={field.id} className="flex items-center gap-2 min-w-0">
+                        {(field.type === 'ai' || field.is_ai_field) && (
+                          <div className="w-4 h-4 bg-gradient-to-r from-purple-500 to-purple-500 rounded-sm flex items-center justify-center flex-shrink0">
+                            <span className="text-white text-[10px] font-bold">AI</span>
+                          </div>
+                        )}
+                        <span className={`truncate ${
+                          field.type === 'ai' || field.is_ai_field ? 'text-purple-700' : 'text-gray-500'
+                        }`}>
+                          {field.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="w-16 text-right">Actions</div>
+                </div>
+
+                {/* Table Body - Linear Style */}
+                <div className="divide-y divide-gray-50">
+                  {submissions.map((submission: FormSubmission, index: number) => (
+                    <div 
+                      key={submission.id}
+                      className="group grid grid-cols-[auto_1fr_auto] gap-6 px-4 py-4 hover:bg-gray-50/30 transition-colors duration-150 cursor-pointer border-l-2 border-transparent hover:border-l-blue-500"
+                      onClick={() => router.push(`/dashboard/forms/${formId}/responses/${submission.id}`)}
+                    >
+                      {/* Row Number */}
+                      <div className="w-12 flex items-center">
+                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors">
+                          {index + 1}
+                        </div>
+                      </div>
+
+                      {/* Field Values */}
+                      <div className="grid gap-6 min-w-0" style={{ gridTemplateColumns: `repeat(${renderedFields.length}, minmax(200px, 1fr))` }}>
+                        {renderedFields.map((field: FormField) => (
+                          <div key={field.id} className="min-w-0 flex items-center">
+                            {renderSubmissionValueLinear(submission.data[field.id], field)}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="w-16 flex items-center justify-end">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:bg-gray-100"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            router.push(`/dashboard/forms/${formId}/responses/${submission.id}`);
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5 text-gray-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer - Minimal */}
+                {submissions.length > 10 && (
+                  <div className="flex items-center justify-center py-6 border-t border-gray-50">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="h-8 px-3 text-gray-600 hover:text-gray-900"
+                      onClick={() => router.push(`/dashboard/forms/${formId}/responses`)}
+                    >
+                      View all {submissions.length} responses
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Empty State - Linear Style */
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                  <FileText className="h-6 w-6 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No responses yet</h3>
+                <p className="text-gray-500 mb-6 max-w-sm">
+                  Share your form to start collecting responses from your audience.
+                </p>
+                <div className="flex items-center gap-3">
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={handleShareForm}
+                    className="h-8 px-3"
+                  >
+                    <Share className="h-4 w-4 mr-2" />
+                    Share form
+                  </Button>
+                  <Button 
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push(`/forms/${formId}`)}
+                    className="h-8 px-3"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Preview
+                  </Button>
+                </div>
+              </div>
+            )}
           </TabsContent>
-          
-        
         </Tabs>
       </div>
       

@@ -1,5 +1,5 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
 // Protect all dashboard routes and API routes
 const isProtectedRoute = createRouteMatcher([
@@ -16,8 +16,7 @@ const isPublicFormRoute = createRouteMatcher([
   "/api/forms/(.*)" // Form API routes can be public with proper params
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
-  // Get the path and search params from the URL
+export default clerkMiddleware((auth, req) => {
   const url = new URL(req.url);
   const path = url.pathname;
   const isPublicParam = url.searchParams.get('public') === 'true';
@@ -31,16 +30,18 @@ export default clerkMiddleware(async (auth, req) => {
   if (path.includes('/api/forms/') && path.includes('/responses')) {
     return NextResponse.next();
   }
-  
-  // Always protect dashboard and protected API routes
+
+  // Check if the route is protected
   if (isProtectedRoute(req)) {
-    await auth.protect();
+    auth.protect();
   }
-  
-  // Public form routes don't need auth
+
+  // Allow public form routes
   if (isPublicFormRoute(req)) {
     return NextResponse.next();
   }
+
+  return NextResponse.next();
 });
 
 export const config = {

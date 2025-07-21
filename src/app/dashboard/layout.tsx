@@ -2,8 +2,8 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import { DashboardHeader } from '@/components/dashboard-header';
-import { AppSidebarV2 } from "@/components/app-sidebar-v2"
+import { DashboardHeader } from '@/components/layout/header/dashboard-header';
+import { AppSidebar } from "@/components/layout/app-sidebar"
 
 // This layout wrapper will handle rendering the header with proper breadcrumbs
 // based on the route path
@@ -35,7 +35,7 @@ export default function DashboardLayout({
   
   return (
     <div className="flex h-screen overflow-hidden">
-      <AppSidebarV2 />
+      <AppSidebar />
       <main className="flex-1 overflow-auto">
         {/* Remove DashboardHeader from layout since it's in each page */}
         {children}
